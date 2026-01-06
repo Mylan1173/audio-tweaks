@@ -1,39 +1,87 @@
-use std::{ fs, path::Path, path::PathBuf, thread };
-use tauri_plugin_dialog::DialogExt;
+use std::{ fs, path::PathBuf };
 use tauri::AppHandle;
+use tauri_plugin_dialog::DialogExt;
+use serde::Serialize;
+#[derive(Serialize)]
+enum FileType {
+    File,
+    Folder,
+}
+#[derive(Serialize)]
+struct Data {
+    d_type: FileType,
+    name: String,
+    children: Vec<Data>,
+}
 
-#[tauri::command]
-async fn list_audio_files(app: &str) -> Result<Vec<String>, String> {
-    let audio_path: &Path = Path::new(app);
-
-    let entries = match fs::read_dir(&audio_path) {
-        Err(why) => {
-            return Err(why.to_string());
+fn get_folder_contents(path: PathBuf) -> Vec<Data> {
+    let r_dir: fs::ReadDir = match fs::read_dir(&path) {
+        Ok(r) => r,
+        Err(_) => {
+            return Vec::new();
         }
-        Ok(f) => f,
     };
 
-    let file_list: Vec<String> = entries
-        .filter_map(|entry| Some(entry.ok()?.path().to_string_lossy().into_owned()))
+    let contents_pathbuf: Vec<PathBuf> = r_dir
+        .filter_map(|content| Some(content.ok()?.path()))
         .collect();
 
-    Ok(file_list)
+    let mut contents: Vec<Data> = Vec::new();
+
+    for content in contents_pathbuf {
+        if content.is_dir() {
+            let dir_contents = get_folder_contents(content.clone());
+
+            contents.push(Data {
+                d_type: FileType::Folder,
+                name: content
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+                children: dir_contents,
+            });
+        } else {
+            contents.push(Data {
+                d_type: FileType::File,
+                name: content
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+                children: Vec::new(),
+            });
+        }
+    }
+    return contents;
 }
 
 #[tauri::command]
-fn select_media(app: AppHandle) -> Result<String, String> {
-    let file_path = app
-        .dialog()
-        .file()
-        .set_title("Select a folder to be added")
-        .blocking_pick_folder();
-    let path: PathBuf = match file_path {
+fn select_media(app: AppHandle, is_file: bool) -> Result<Vec<Data>, String> {
+    let path: Option<tauri_plugin_fs::FilePath>;
+    if is_file {
+        path = app.dialog().file().set_title("Select a file").blocking_pick_file();
+    } else {
+        path = app.dialog().file().set_title("Select a folder").blocking_pick_folder();
+    }
+    let path_buf: PathBuf = match path {
         Some(p) => p.as_path().unwrap().to_owned(),
         None => {
-            return Ok(String::from("Nothing!"));
+            return Ok(Vec::new());
         }
     };
-    Ok(path.to_string_lossy().into_owned())
+    if is_file {
+        Ok(
+            vec![Data {
+                d_type: FileType::File,
+                name: path_buf
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path_buf.to_string_lossy().into_owned()),
+                children: Vec::new(),
+            }]
+        )
+    } else {
+        Ok(get_folder_contents(path_buf))
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -43,7 +91,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![list_audio_files, select_media])
+        .invoke_handler(tauri::generate_handler![select_media])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
