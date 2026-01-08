@@ -1,6 +1,7 @@
 <script>
   import Self from "./MediaItem.svelte";
   import Svg from "./Svg.svelte";
+  import { appState } from "./state.svelte.js";
 
   let { contents, level = 0 } = $props();
 
@@ -12,10 +13,8 @@
     isOpened[index] = !isOpened[index];
   }
 
-  function displayItemName(name) {
-    if (name.length > 20) {
-      return;
-    }
+  function setSelectedFile(file) {
+    appState.selected_file = file;
   }
 </script>
 
@@ -44,7 +43,8 @@
     {:else if item.d_type === "File"}
       <button
         class="path"
-        style="padding-left: {5 * level + (level > 0 && 25)}px;"
+        style="padding-left: {5 * level + 25}px;"
+        onclick={() => setSelectedFile(item.pb)}
       >
         <div class="svg"><Svg name="video" size="20" /></div>
         <span>{item.name}</span>
@@ -64,6 +64,10 @@
     background-color: inherit;
     color: white;
     font-size: 12px;
+
+    &:hover {
+      cursor: pointer;
+    }
   }
   .path {
     height: 25px;

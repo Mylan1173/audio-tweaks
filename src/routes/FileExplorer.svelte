@@ -4,11 +4,20 @@
   import Svg from "./Svg.svelte";
   import MediaItem from "./MediaItem.svelte";
 
-  let asd = $state([]);
+  let files = $state([]);
+  let enviroment = $state({});
 
   async function openMedia(isFile) {
-    asd = await invoke("select_media", { isFile });
-    //appState.explorer = [...appState.explorer, ret];
+    const ret = await invoke("select_media", { isFile });
+    files = [];
+    enviroment = {};
+    if (isFile) {
+      files.push(ret);
+      enviroment = { name: "New Project" };
+    } else {
+      files = ret.children;
+      enviroment = { name: ret.name };
+    }
   }
 </script>
 
@@ -19,13 +28,15 @@
       ></button
     >
     <button onclick={() => openMedia(false)}
-      ><Svg name="folder_open" color="rgb(186, 197, 211)" /><span
+      ><Svg name="folder_open_outline" color="rgb(186, 197, 211)" /><span
         >Add Folder</span
       ></button
     >
   </div>
   <div id="added_paths">
-    <MediaItem contents={asd} />
+    <div class="env">{enviroment.name}</div>
+    <MediaItem contents={files} />
+    <!-- {JSON.stringify(files)} -->
   </div>
 </div>
 
@@ -84,10 +95,20 @@
     display: flex;
     flex-direction: column;
     gap: 5px;
-    padding: 5px 0px;
+    padding: 0 0 5px 0;
     overflow-y: scroll;
     &::-webkit-scrollbar {
       display: none;
     }
+  }
+
+  .env {
+    width: 100%;
+    padding-left: 10px;
+    background-color: rgb(19, 28, 46);
+    border-bottom: 1px solid rgb(69, 85, 108);
+    color: rgb(186, 197, 211);
+    font-size: 13px;
+    font-weight: bold;
   }
 </style>

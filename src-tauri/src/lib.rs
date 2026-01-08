@@ -11,14 +11,15 @@ enum FileType {
 struct Data {
     d_type: FileType,
     name: String,
-    children: Vec<Data>,
+    children: Option<Vec<Data>>,
+    pb: PathBuf,
 }
 
-fn get_folder_contents(path: PathBuf) -> Vec<Data> {
+fn get_folder_contents(path: PathBuf) -> Result<Data, String> {
     let r_dir: fs::ReadDir = match fs::read_dir(&path) {
         Ok(r) => r,
         Err(_) => {
-            return Vec::new();
+            return Err(String::from("Failed to read dir!"));
         }
     };
 
@@ -38,7 +39,8 @@ fn get_folder_contents(path: PathBuf) -> Vec<Data> {
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_else(|| path.to_string_lossy().into_owned()),
-                children: dir_contents,
+                children: dir_contents.unwrap().children,
+                pb: content,
             });
         } else {
             contents.push(Data {
@@ -47,15 +49,24 @@ fn get_folder_contents(path: PathBuf) -> Vec<Data> {
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_else(|| path.to_string_lossy().into_owned()),
-                children: Vec::new(),
+                children: None,
+                pb: content,
             });
         }
     }
-    return contents;
+    Ok(Data {
+        d_type: FileType::Folder,
+        name: path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+        children: Some(contents),
+        pb: path,
+    })
 }
 
 #[tauri::command]
-fn select_media(app: AppHandle, is_file: bool) -> Result<Vec<Data>, String> {
+fn select_media(app: AppHandle, is_file: bool) -> Result<Data, String> {
     let path: Option<tauri_plugin_fs::FilePath>;
     if is_file {
         path = app.dialog().file().set_title("Select a file").blocking_pick_file();
@@ -65,22 +76,24 @@ fn select_media(app: AppHandle, is_file: bool) -> Result<Vec<Data>, String> {
     let path_buf: PathBuf = match path {
         Some(p) => p.as_path().unwrap().to_owned(),
         None => {
-            return Ok(Vec::new());
+            return Err(String::from("Failed to get FilePath!"));
         }
     };
     if is_file {
-        Ok(
-            vec![Data {
-                d_type: FileType::File,
-                name: path_buf
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path_buf.to_string_lossy().into_owned()),
-                children: Vec::new(),
-            }]
-        )
+        Ok(Data {
+            d_type: FileType::File,
+            name: path_buf
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path_buf.to_string_lossy().into_owned()),
+            children: None,
+            pb: path_buf,
+        })
     } else {
-        Ok(get_folder_contents(path_buf))
+        match get_folder_contents(path_buf) {
+            Ok(p) => Ok(p),
+            Err(e) => Err(e),
+        }
     }
 }
 
