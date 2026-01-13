@@ -13,8 +13,8 @@
     isOpened[index] = !isOpened[index];
   }
 
-  function setSelectedFile(file) {
-    appState.selected_file = file;
+  function setSelectedFile(path, name) {
+    appState.selected_file = { path, name };
   }
 </script>
 
@@ -43,8 +43,9 @@
     {:else if item.d_type === "File"}
       <button
         class="path"
+        class:selected={appState.selected_file?.name === item.name}
         style="padding-left: {5 * level + 25}px;"
-        onclick={() => setSelectedFile(item.pb)}
+        onclick={() => setSelectedFile(item.pb, item.name)}
       >
         <div class="svg"><Svg name="video" size="20" /></div>
         <span>{item.name}</span>
@@ -100,5 +101,9 @@
     &:hover {
       background-color: rgb(19, 28, 46);
     }
+  }
+
+  .selected {
+    background-color: rgb(19, 28, 46);
   }
 </style>

@@ -1,6 +1,6 @@
 [package]
 name = "audio-tweaks"
-version = "0.1.0"
+version = "0.1.4"
 description = "A Tauri App"
 authors = ["Mylan1173"]
 edition = "2021"
@@ -24,4 +24,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
-
+tauri-plugin-shell = "2"
