@@ -8,6 +8,9 @@
   let enviroment = $state({});
 
   async function openMedia(isFile) {
+    appState.selected_file = undefined;
+    appState.media_properties = {};
+
     const ret = await invoke("select_media", { isFile });
     files = [];
     enviroment = {};
@@ -33,19 +36,16 @@
       ></button
     >
   </div>
+  <div class="env">{enviroment.name}</div>
   <div id="added_paths">
-    <div class="env">{enviroment.name}</div>
     <MediaItem contents={files} />
-    <!-- {JSON.stringify(files)} -->
   </div>
 </div>
 
 <style>
   #file_explorer {
-    max-width: 300px;
     width: 100%;
-    height: 100%;
-    margin: 10px;
+    height: calc(100vh - 20px);
     border: 1px solid rgb(69, 85, 108);
     border-radius: 10px;
     background-color: rgb(29, 41, 61);
@@ -96,7 +96,7 @@
     flex-direction: column;
     gap: 5px;
     padding: 0 0 5px 0;
-    overflow-y: scroll;
+    overflow-y: scroll !important;
     &::-webkit-scrollbar {
       display: none;
     }
