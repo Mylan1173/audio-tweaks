@@ -1,7 +1,7 @@
 <script>
   import Self from "./MediaItem.svelte";
-  import Svg from "./Svg.svelte";
-  import { appState } from "./state.svelte.js";
+  import Svg from "./utils/Svg.svelte";
+  import { appState, askModal } from "./utils/state.svelte.js";
 
   let { contents, level = 0 } = $props();
 
@@ -13,8 +13,22 @@
     isOpened[index] = !isOpened[index];
   }
 
-  function setSelectedFile(path, name) {
-    appState.selected_file = { path, name };
+  async function setSelectedFile(path, name) {
+    if (Object.keys(appState.pendingChanges).length !== 0) {
+      const answer = await askModal(
+        "By changing files you discard the changes! Continue?",
+        { cancel: "Cancel", agree: "Yes" }
+      );
+      if (answer) {
+        appState.selected_file = {};
+        appState.selected_file = { path, name };
+        appState.pendingChanges = {};
+      }
+    } else {
+      appState.selected_file = {};
+      appState.selected_file = { path, name };
+      appState.pendingChanges = {};
+    }
   }
 </script>
 
@@ -27,12 +41,12 @@
         style="padding-left: {5 * level}px;"
       >
         <div class="svg" class:open={isOpened[index]}>
-          <Svg name="chevron_left" size="20" />
+          <Svg name="chevron_left" size={20} />
         </div>
         <div class="svg">
           <Svg
             name={isOpened[index] ? "folder_open" : "folder_closed"}
-            size="20"
+            size={20}
           />
         </div>
         <span>{item.name}</span>
@@ -47,7 +61,7 @@
         style="padding-left: {5 * level + 25}px;"
         onclick={() => setSelectedFile(item.pb, item.name)}
       >
-        <div class="svg"><Svg name="video" size="20" /></div>
+        <div class="svg"><Svg name="video" size={20} /></div>
         <span>{item.name}</span>
       </button>
     {/if}

@@ -19,10 +19,7 @@ fn validate_file(path: PathBuf) -> bool {
     let allowlist = ["mp4", "m4p", "mkv", "avi"];
 
     match path.extension().and_then(|ext| ext.to_str()) {
-        Some(ext) => {
-            // 4. Check if allowlist contains the LOWERCASE version to be safe
-            allowlist.contains(&ext.to_lowercase().as_str())
-        }
+        Some(ext) => allowlist.contains(&ext.to_lowercase().as_str()),
         None => false, // No extension found
     }
 }

@@ -1,6 +1,6 @@
 {
   "name": "audio-tweaks",
-  "version": "0.1.4",
+  "version": "0.1.6",
   "description": "",
   "type": "module",
   "scripts": {
@@ -17,7 +17,8 @@
     "@tauri-apps/plugin-dialog": "^2.4.2",
     "@tauri-apps/plugin-fs": "^2.4.4",
     "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-shell": "^2.3.4"
+    "@tauri-apps/plugin-shell": "^2.3.4",
+    "lodash": "^4.17.21"
   },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.10",

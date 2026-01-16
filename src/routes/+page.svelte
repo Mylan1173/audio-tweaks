@@ -1,22 +1,22 @@
 <script>
-  import { appState } from "./state.svelte.js";
+  import { appState } from "./utils/state.svelte.js";
   import FileExplorer from "./FileExplorer.svelte";
   import MediaProperties from "./MediaProperties.svelte";
+  import Modal from "./utils/Modal.svelte";
 
   let isResizing = $state(false);
 
-  function startResizing(e) {
+  function startResizing() {
     isResizing = true;
     window.addEventListener("mousemove", handleMouseMove);
     window.addEventListener("mouseup", stopResizing);
-    // Prevent text selection while dragging
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
   }
 
   function handleMouseMove(e) {
     if (!isResizing) return;
-    if (e.clientX > 300 && e.clientX < 600) {
+    if (e.clientX > 330 && e.clientX < 600) {
       appState.sidebarWidth = e.clientX - 10;
     }
   }
@@ -28,6 +28,12 @@
     document.body.style.cursor = "default";
     document.body.style.userSelect = "auto";
   }
+
+  let modalRef;
+
+  $effect(() => {
+    appState.modal = modalRef;
+  });
 </script>
 
 <main
@@ -38,6 +44,7 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div id="resizer" role="separator" onmousedown={startResizing}></div>
   <MediaProperties />
+  <Modal bind:this={modalRef} />
 </main>
 
 <style>
@@ -55,7 +62,7 @@ TEXT COLOR: 144, 161, 185
     font-size: 12px;
     font-weight: 400;
     box-sizing: border-box;
-    user-select: none;
+    /* user-select: none; */
   }
 
   :root {

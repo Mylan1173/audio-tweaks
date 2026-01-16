@@ -10,7 +10,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![explorer::select_media, media::get_media_streams])
+        .invoke_handler(
+            tauri::generate_handler![
+                explorer::select_media,
+                media::get_media_streams,
+                media::save_media_props
+            ]
+        )
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

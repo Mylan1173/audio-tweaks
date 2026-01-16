@@ -1,11 +1,11 @@
 <script>
   import { invoke } from "@tauri-apps/api/core";
-  import { appState } from "./state.svelte.js";
-  import Svg from "./Svg.svelte";
+  import { appState } from "./utils/state.svelte.js";
+  import Svg from "./utils/Svg.svelte";
   import MediaItem from "./MediaItem.svelte";
 
   let files = $state([]);
-  let enviroment = $state({});
+  let enviroment = $state({ name: undefined });
 
   async function openMedia(isFile) {
     appState.selected_file = undefined;
@@ -13,7 +13,7 @@
 
     const ret = await invoke("select_media", { isFile });
     files = [];
-    enviroment = {};
+    enviroment = { name: undefined };
     if (isFile) {
       files.push(ret);
       enviroment = { name: "New Project" };
@@ -27,12 +27,12 @@
 <div id="file_explorer">
   <div id="buttons">
     <button onclick={() => openMedia(true)}
-      ><Svg name="file_open" color="rgb(186, 197, 211)" /><span>Add File</span
+      ><Svg name="file_open" color="rgb(186, 197, 211)" /><span>Open File</span
       ></button
     >
     <button onclick={() => openMedia(false)}
       ><Svg name="folder_open_outline" color="rgb(186, 197, 211)" /><span
-        >Add Folder</span
+        >Open Folder</span
       ></button
     >
   </div>
