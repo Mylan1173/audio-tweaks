@@ -1,7 +1,7 @@
 <script>
   import Self from "./MediaItem.svelte";
   import Svg from "./utils/Svg.svelte";
-  import { appState, askModal } from "./utils/state.svelte.js";
+  import { appState, setSelectedFile } from "./utils/state.svelte.js";
 
   let { contents, level = 0 } = $props();
 
@@ -12,29 +12,11 @@
   function openCloseMenu(index) {
     isOpened[index] = !isOpened[index];
   }
-
-  async function setSelectedFile(path, name) {
-    if (Object.keys(appState.pendingChanges).length !== 0) {
-      const answer = await askModal(
-        "By changing files you discard the changes! Continue?",
-        { cancel: "Cancel", agree: "Yes" }
-      );
-      if (answer) {
-        appState.selected_file = {};
-        appState.selected_file = { path, name };
-        appState.pendingChanges = {};
-      }
-    } else {
-      appState.selected_file = {};
-      appState.selected_file = { path, name };
-      appState.pendingChanges = {};
-    }
-  }
 </script>
 
-{#each currentContents as item, index}
+{#each currentContents as item, index (index)}
   <div class="path_cont">
-    {#if item.d_type === "Folder"}
+    {#if item.data_type === "Folder"}
       <button
         onclick={() => openCloseMenu(index)}
         class="path"
@@ -49,20 +31,20 @@
             size={20}
           />
         </div>
-        <span>{item.name}</span>
+        <span>{item.data_name}</span>
       </button>
       {#if item.children && item.children.length > 0 && isOpened[index]}
         <Self contents={item.children} level={level + 1} />
       {/if}
-    {:else if item.d_type === "File"}
+    {:else if item.data_type === "File"}
       <button
         class="path"
-        class:selected={appState.selected_file?.name === item.name}
+        class:selected={appState.selected_file?.name === item.data_name}
         style="padding-left: {5 * level + 25}px;"
-        onclick={() => setSelectedFile(item.pb, item.name)}
+        onclick={() => setSelectedFile(item.data_path, item.data_name)}
       >
         <div class="svg"><Svg name="video" size={20} /></div>
-        <span>{item.name}</span>
+        <span>{item.data_name}</span>
       </button>
     {/if}
   </div>

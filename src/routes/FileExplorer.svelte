@@ -1,44 +1,26 @@
 <script>
-  import { invoke } from "@tauri-apps/api/core";
-  import { appState } from "./utils/state.svelte.js";
+  import { appState, openMedia } from "./utils/state.svelte.js";
   import Svg from "./utils/Svg.svelte";
   import MediaItem from "./MediaItem.svelte";
-
-  let files = $state([]);
-  let enviroment = $state({ name: undefined });
-
-  async function openMedia(isFile) {
-    appState.selected_file = undefined;
-    appState.media_properties = {};
-
-    const ret = await invoke("select_media", { isFile });
-    files = [];
-    enviroment = { name: undefined };
-    if (isFile) {
-      files.push(ret);
-      enviroment = { name: "New Project" };
-    } else {
-      files = ret.children;
-      enviroment = { name: ret.name };
-    }
-  }
+  let env = $derived(appState.enviroment);
 </script>
 
 <div id="file_explorer">
   <div id="buttons">
-    <button onclick={() => openMedia(true)}
-      ><Svg name="file_open" color="rgb(186, 197, 211)" /><span>Open File</span
-      ></button
-    >
-    <button onclick={() => openMedia(false)}
-      ><Svg name="folder_open_outline" color="rgb(186, 197, 211)" /><span
+    <button onclick={() => openMedia(true)}>
+      <Svg name="file_open" color="rgb(186, 197, 211)" /><span>Open File</span>
+    </button>
+    <button onclick={() => openMedia(false)}>
+      <Svg name="folder_open_outline" color="rgb(186, 197, 211)" /><span
         >Open Folder</span
-      ></button
-    >
+      >
+    </button>
   </div>
-  <div class="env">{enviroment.name}</div>
+
+  <div class="env">{env.name}</div>
+
   <div id="added_paths">
-    <MediaItem contents={files} />
+    <MediaItem contents={appState.explorer} />
   </div>
 </div>
 
@@ -94,7 +76,6 @@
   #added_paths {
     display: flex;
     flex-direction: column;
-    gap: 5px;
     padding: 0 0 5px 0;
     overflow-y: scroll !important;
     &::-webkit-scrollbar {

@@ -2,7 +2,8 @@
   import { appState } from "./utils/state.svelte.js";
   import FileExplorer from "./FileExplorer.svelte";
   import MediaProperties from "./MediaProperties.svelte";
-  import Modal from "./utils/Modal.svelte";
+  import ModalWrapper from "./utils/ModalWrapper.svelte";
+  import QuickMenu from "./utils/QuickMenu.svelte";
 
   let isResizing = $state(false);
 
@@ -44,7 +45,8 @@
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div id="resizer" role="separator" onmousedown={startResizing}></div>
   <MediaProperties />
-  <Modal bind:this={modalRef} />
+  <QuickMenu />
+  <ModalWrapper bind:this={modalRef} />
 </main>
 
 <style>

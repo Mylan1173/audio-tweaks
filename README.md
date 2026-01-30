@@ -1,12 +1,16 @@
-# ToBeDone
+# AudioTweaks
 
-## Video Properties
+A GUI wrapper for the **ffmpeg** and **ffprobe** PEs with extended functionality.
+
+## Features
+
+### Video Properties
 
 - [ ] change extension
 - [ ] change codec
 - [ ] change bitrate
 
-## Audio Properties
+### Audio Properties
 
 - [ ] edit default/forced stream
 - [ ] change codec
@@ -19,15 +23,15 @@
 - [ ] change volume of channels/overall (+/-db)
 - [ ] visualize waveform channel volume for every stream
 
-## Subtitle Properties
+### Subtitle Properties
 
-- [ ] edit default/forced stream
-- [ ] delete stream
+- [x] edit default/forced stream
+- [x] delete stream
 - [ ] add stream (from subrip file)
-- [ ] export stream (to subrip file)
+- [x] export stream (to subrip file)
 - [ ] change title/language of stream
 
-## App features
+### App features
 
 - [ ] save/edit profiles
 - [ ] import/export profiles to config files
@@ -36,7 +40,7 @@
 
 ✅/❌
 
-# IDE Setup
+## IDE Setup
 
 - [VS Code](https://code.visualstudio.com/)
 - [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode)

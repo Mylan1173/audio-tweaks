@@ -1,22 +1,27 @@
 <script>
+  import { invoke } from "@tauri-apps/api/core";
   import { appState } from "../utils/state.svelte.js";
   import Svg from "../utils/Svg.svelte";
+  import {
+    openQuickMenu,
+    startModal,
+    closeModal,
+  } from "../utils/state.svelte.js";
 
   let selectedFile = $derived(appState.selected_file);
   let fileData = $derived(appState.media_properties[selectedFile.path]);
   let sortedSubtitles = $derived(
     fileData.streams
       .filter((x) => x.codec_type === "subtitle")
-      .toSorted(sortSubtitles)
+      .toSorted(sortSubtitles),
   );
 
   let oldFileData = $state(null);
 
-  // Whenever the selected path changes, take a new deep-copy snapshot
   $effect(() => {
     if (!oldFileData) {
       oldFileData = JSON.parse(
-        JSON.stringify(appState.media_properties[selectedFile.path])
+        JSON.stringify(appState.media_properties[selectedFile.path]),
       );
     }
   });
@@ -30,6 +35,45 @@
     }
   }
 
+  function updateChanges() {
+    // Update pendingChanges accordingly
+    const originalSubs = oldFileData.streams.filter(
+      (s) => s.codec_type === "subtitle",
+    );
+    const currentSubs = fileData.streams.filter(
+      (s) => s.codec_type === "subtitle",
+    );
+    // 2. Check if Default has changed
+    const oldDefaultIdx = originalSubs.findIndex(
+      (s) => s.disposition.default === 1,
+    );
+    const newDefaultIdx = currentSubs.findIndex(
+      (s) => s.disposition.default === 1,
+    );
+
+    // 3. Check if Forced has changed
+    const oldForced = originalSubs
+      .filter((s) => s.disposition.forced === 1)
+      .map((x) => getSubTypeIndex(x.index));
+    const newForced = currentSubs
+      .filter((s) => s.disposition.forced === 1)
+      .map((x) => getSubTypeIndex(x.index));
+
+    if (
+      JSON.stringify(oldForced) === JSON.stringify(newForced) &&
+      oldDefaultIdx === newDefaultIdx &&
+      appState.pendingChanges.subs.delete.length === 0
+    ) {
+      delete appState.pendingChanges.subs;
+    } else {
+      appState.pendingChanges.subs.default =
+        newDefaultIdx === -1 ? null : newDefaultIdx;
+      appState.pendingChanges.subs.forced = newForced;
+      if (!appState.pendingChanges.subs.delete)
+        appState.pendingChanges.subs.delete = [];
+    }
+  }
+
   function changeSelectedSub(index, type) {
     if (!oldFileData) return;
 
@@ -40,7 +84,7 @@
     if (type === "default") {
       // 1. Find the current default stream globally
       const currentDefault = fileData.streams.find(
-        (s) => s.codec_type === "subtitle" && s.disposition.default === 1
+        (s) => s.codec_type === "subtitle" && s.disposition.default === 1,
       );
 
       // 2. Logic for "at most 1"
@@ -63,46 +107,55 @@
       fileData.streams[index].disposition.forced = val;
     }
 
-    // Update pendingChanges accordingly
-    const originalSubs = oldFileData.streams.filter(
-      (s) => s.codec_type === "subtitle"
-    );
-    const currentSubs = fileData.streams.filter(
-      (s) => s.codec_type === "subtitle"
-    );
-    // 2. Check if Default has changed
-    const oldDefaultIdx = originalSubs.findIndex(
-      (s) => s.disposition.default === 1
-    );
-    const newDefaultIdx = currentSubs.findIndex(
-      (s) => s.disposition.default === 1
-    );
-
-    // 3. Check if Forced has changed
-    const oldForced = originalSubs
-      .filter((s) => s.disposition.forced === 1)
-      .map((x) => getSubTypeIndex(x.index));
-    const newForced = currentSubs
-      .filter((s) => s.disposition.forced === 1)
-      .map((x) => getSubTypeIndex(x.index));
-
-    if (
-      JSON.stringify(oldForced) === JSON.stringify(newForced) &&
-      oldDefaultIdx === newDefaultIdx
-    ) {
-      delete appState.pendingChanges.subs;
-    } else {
-      appState.pendingChanges.subs.default =
-        newDefaultIdx === -1 ? null : newDefaultIdx;
-      appState.pendingChanges.subs.forced = newForced;
-    }
+    updateChanges();
   }
 
   function getSubTypeIndex(globalIndex) {
-    return fileData.streams
+    return oldFileData.streams
       .filter((s) => s.codec_type === "subtitle")
       .findIndex((s) => s.index === globalIndex);
   }
+
+  async function handleMore(e, idx) {
+    const action = await openQuickMenu(e.currentTarget, [
+      { label: "Delete", value: "delete", icon: "delete_forever" },
+      { label: "Export as SubRip", value: "export", icon: "export" },
+    ]);
+
+    if (!action) return;
+
+    if (action === "delete") {
+      const answer = await startModal(
+        "Ask",
+        "Are you sure you want to delete the subtitle track?",
+      );
+      if (answer) {
+        if (!appState.pendingChanges.subs) appState.pendingChanges.subs = {};
+        if (!appState.pendingChanges.subs.delete)
+          appState.pendingChanges.subs.delete = [];
+
+        appState.pendingChanges.subs.delete.push(getSubTypeIndex(idx));
+        appState.pendingChanges.subs.delete.sort();
+
+        updateChanges();
+      }
+    } else if (action === "export") {
+      startModal("ProgressBar", "Saving Track...");
+      try {
+        await invoke("export_stream", {
+          inputPath: selectedFile.path,
+          streamType: "subtitle",
+          streamIndex: getSubTypeIndex(idx),
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        closeModal();
+      }
+    }
+  }
+
+  function handleImport() {}
 </script>
 
 <div class="subtitles properties_cont">
@@ -124,43 +177,51 @@
         >
         <tbody>
           {#each sortedSubtitles as stream (stream.index)}
-            <tr>
-              <td>{stream.tags.title ?? "-"}</td>
-              <td>{stream.tags.language}</td>
-              <td>
-                <button
-                  class="checkbox"
-                  onclick={() => changeSelectedSub(stream.index, "default")}
-                >
-                  {#if stream.disposition.default === 1}
-                    <Svg name="check" color="white" />
-                  {:else}
-                    <Svg name="uncheck" color="white"></Svg>
-                  {/if}
-                </button>
-              </td>
-              <td>
-                <button
-                  class="checkbox"
-                  onclick={() => changeSelectedSub(stream.index, "forced")}
-                >
-                  {#if stream.disposition.forced === 1}
-                    <Svg name="check" color="white" />
-                  {:else}
-                    <Svg name="uncheck" color="white"></Svg>
-                  {/if}
-                </button>
-              </td>
-              <td
-                ><button class="delete"
-                  ><Svg name="delete_forever" color="white" /><span>Delete</span
+            {#if !appState.pendingChanges.subs?.delete?.some((x) => x === getSubTypeIndex(stream.index))}
+              <tr>
+                <td>{stream.tags.title ?? "-"}</td>
+                <td>{stream.tags.language}</td>
+                <td>
+                  <button
+                    class="checkbox"
+                    onclick={() => changeSelectedSub(stream.index, "default")}
                   >
-                </button></td
-              >
-            </tr>
+                    {#if stream.disposition.default === 1}
+                      <Svg name="check" color="white" />
+                    {:else}
+                      <Svg name="uncheck" color="white"></Svg>
+                    {/if}
+                  </button>
+                </td>
+                <td>
+                  <button
+                    class="checkbox"
+                    onclick={() => changeSelectedSub(stream.index, "forced")}
+                  >
+                    {#if stream.disposition.forced === 1}
+                      <Svg name="check" color="white" />
+                    {:else}
+                      <Svg name="uncheck" color="white"></Svg>
+                    {/if}
+                  </button>
+                </td>
+                <td
+                  ><button
+                    class="more"
+                    onclick={(e) => handleMore(e, stream.index)}
+                    ><Svg name="more" color="white" />
+                  </button></td
+                >
+              </tr>
+            {/if}
           {/each}
         </tbody>
       </table>
+      <button class="add-stream"
+        ><Svg name="add" color="rgb(186, 197, 211)" /><span
+          >Add Subtitle Track</span
+        ></button
+      >
     {:else}
       <div class="no_file">No subtitle data found</div>
     {/if}
@@ -246,10 +307,7 @@
           width: 10%;
         }
         td:nth-child(5) {
-          width: 10%;
-        }
-        &:hover .delete {
-          opacity: 1;
+          width: 5%;
         }
       }
     }
@@ -267,31 +325,56 @@
     }
   }
 
+  .add-stream {
+    margin: 5px auto;
+    width: fit-content;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 10px;
+    border-radius: 10px;
+    border: 1px solid rgb(69, 85, 108);
+    background-color: transparent;
+    cursor: pointer;
+    gap: 10px;
+    transition: 100ms all ease-in-out;
+
+    span {
+      font-size: 16px;
+      font-weight: 600;
+      color: rgb(186, 197, 211);
+    }
+    &:hover {
+      border-color: rgb(186, 197, 211);
+      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+    }
+    &:active {
+      transform: scale(97%);
+    }
+  }
+
   .checkbox {
     cursor: pointer;
     background-color: transparent;
     border: none;
   }
 
-  .delete {
-    opacity: 0;
+  .more {
     display: flex;
     flex-direction: row;
     justify-content: center;
     align-items: center;
-    background-color: rgb(202, 0, 0);
-    border-radius: 5px;
+    background-color: transparent;
+    border-radius: 10px;
     margin: 2px auto;
     padding: 5px 10px;
     gap: 10px;
     border: none;
     transition: 100ms all ease-in-out;
     cursor: pointer;
-
-    span {
-      font-size: 15px;
-      font-weight: 600;
-      color: white;
+    &:hover {
+      background-color: rgb(19, 28, 46);
     }
     &:active {
       transform: scale(97%);

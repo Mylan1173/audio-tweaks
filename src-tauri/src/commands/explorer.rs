@@ -3,16 +3,16 @@ use std::{ fs::{ self }, path::PathBuf };
 use tauri::AppHandle;
 use tauri_plugin_dialog::DialogExt;
 #[derive(Serialize)]
-pub enum FileType {
+pub enum DataType {
     File,
     Folder,
 }
 #[derive(Serialize)]
 pub struct Data {
-    d_type: FileType,
-    name: String,
     children: Option<Vec<Data>>,
-    pb: PathBuf,
+    data_type: DataType,
+    data_name: String,
+    data_path: PathBuf,
 }
 
 fn validate_file(path: PathBuf) -> bool {
@@ -43,62 +43,72 @@ fn get_folder_contents(path: PathBuf) -> Result<Data, String> {
             let dir_contents = get_folder_contents(content.clone());
 
             contents.push(Data {
-                d_type: FileType::Folder,
-                name: content
+                data_type: DataType::Folder,
+                data_name: content
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_else(|| path.to_string_lossy().into_owned()),
                 children: dir_contents.unwrap().children,
-                pb: content,
+                data_path: content,
             });
         } else {
             if validate_file(content.clone()) {
                 contents.push(Data {
-                    d_type: FileType::File,
-                    name: content
+                    data_type: DataType::File,
+                    data_name: content
                         .file_name()
                         .map(|n| n.to_string_lossy().into_owned())
                         .unwrap_or_else(|| path.to_string_lossy().into_owned()),
                     children: None,
-                    pb: content,
+                    data_path: content,
                 });
             }
         }
     }
     Ok(Data {
-        d_type: FileType::Folder,
-        name: path
+        data_type: DataType::Folder,
+        data_name: path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.to_string_lossy().into_owned()),
         children: Some(contents),
-        pb: path,
+        data_path: path,
     })
 }
 
 #[tauri::command]
-pub fn select_media(app: AppHandle, is_file: bool) -> Result<Data, String> {
-    let path: Option<tauri_plugin_fs::FilePath>;
-    if is_file {
-        path = app.dialog().file().set_title("Select a file").blocking_pick_file();
+pub fn select_media(
+    app: AppHandle,
+    is_file: bool,
+    refresh_path: Option<String>
+) -> Result<Data, String> {
+    let path_buf: PathBuf;
+    if let Some(refresh_path) = refresh_path {
+        path_buf = PathBuf::from(refresh_path);
     } else {
-        path = app.dialog().file().set_title("Select a folder").blocking_pick_folder();
-    }
-    let path_buf: PathBuf = match path {
-        Some(p) => p.as_path().unwrap().to_owned(),
-        None => {
-            return Err(String::from("Failed to get FilePath!"));
+        let path: Option<tauri_plugin_fs::FilePath>;
+        if is_file {
+            path = app.dialog().file().set_title("Select a file").blocking_pick_file();
+        } else {
+            path = app.dialog().file().set_title("Select a folder").blocking_pick_folder();
         }
-    };
+        path_buf = match path {
+            Some(p) => p.as_path().unwrap().to_owned(),
+            None => {
+                return Err(String::from("Failed to get FilePath!"));
+            }
+        };
+    }
+
     if is_file {
         Ok(Data {
-            d_type: FileType::File,
-            name: path_buf
+            data_type: DataType::File,
+            data_name: path_buf
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| path_buf.to_string_lossy().into_owned()),
             children: None,
-            pb: path_buf,
+            data_path: path_buf,
         })
     } else {
         match get_folder_contents(path_buf) {

@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{ explorer, media };
+use commands::{ explorer, media, export };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,7 +14,8 @@ pub fn run() {
             tauri::generate_handler![
                 explorer::select_media,
                 media::get_media_streams,
-                media::save_media_props
+                media::save_media_props,
+                export::export_stream
             ]
         )
         .run(tauri::generate_context!())

@@ -1,5 +1,10 @@
 <script>
-  import { appState, askModal } from "./utils/state.svelte.js";
+  import {
+    appState,
+    startModal,
+    openMedia,
+    setSelectedFile,
+  } from "./utils/state.svelte.js";
   import { invoke } from "@tauri-apps/api/core";
   import VideoProperties from "./Properties/VideoProperties.svelte";
   import AudioProperties from "./Properties/AudioProperties.svelte";
@@ -18,35 +23,63 @@
       return;
     }
 
-    if (appState.media_properties[selectedFile.path]) {
-      fileData = appState.media_properties[selectedFile.path];
-      return;
+    const cachedData = appState.media_properties[selectedFile.path];
+
+    if (cachedData) {
+      fileData = cachedData;
+      loading = false;
+    } else {
+      loading = true;
+      invoke("get_media_streams", { path: selectedFile.path })
+        .then((res) => {
+          fileData = res;
+          appState.media_properties[selectedFile.path] = res;
+          loading = false;
+        })
+        .catch((err) => {
+          console.error(err);
+          loading = false;
+        });
     }
-
-    loading = true;
-
-    invoke("get_media_streams", { path: selectedFile.path })
-      .then((res) => {
-        fileData = res;
-        appState.media_properties[selectedFile.path] = fileData;
-        loading = false;
-      })
-      .catch((err) => {
-        console.log(err);
-        loading = false;
-      });
   });
 
-  async function handleSave() {
-    const answer = await askModal(
-      "Are you sure you want to write changes to the file?",
-      { cancel: "Cancel", agree: "Yes" }
-    );
-    if (answer) {
+  async function handleSave(saveAs) {
+    if (!saveAs) {
+      const answer = await startModal(
+        "Ask",
+        "Are you sure you want to write changes to the file?",
+        { cancel: "Cancel", agree: "Yes" },
+      );
+      if (!answer) return;
+    }
+
+    const targetPath = appState.selected_file.path;
+
+    try {
+      startModal("ProgressBar", "Saving file...");
       await invoke("save_media_props", {
-        filePath: appState.selected_file.path,
-        changes: appState.pendingChanges,
+        filePath: targetPath,
+        changes: $state.snapshot(appState.pendingChanges),
+        saveAs,
       });
+
+      appState.pendingChanges = {};
+      appState.media_properties[targetPath] = null;
+      fileData = null;
+
+      await openMedia(appState.enviroment.isFile, true);
+      setSelectedFile(appState.selected_file.path, appState.selected_file.name);
+    } catch (error) {
+      appState.modal = null;
+      console.error(error);
+      const again = await startModal("Ask", `File could not be saved!`, {
+        cancel: "Cancel",
+        agree: "Try Again",
+      });
+
+      if (again) {
+        handleSave();
+      }
     }
   }
 </script>
@@ -71,11 +104,11 @@
             appState.pendingChanges = {};
           }}><Svg name="mop" color="rgb(186, 197, 211)" /></button
         >
-        <button class="save" onclick={handleSave}
+        <button class="save" onclick={() => handleSave(false)}
           ><Svg name="save" color="rgb(186, 197, 211)" /><span>Save</span
           ></button
         >
-        <button class="save_as"
+        <button class="save_as" onclick={() => handleSave(true)}
           ><Svg name="save_as" color="rgb(186, 197, 211)" /><span>Save As</span
           ></button
         >
@@ -129,7 +162,6 @@
   }
 
   .header {
-    min-height: 58px;
     height: fit-content;
     width: calc(100% - 20px);
     background-color: rgb(29, 41, 61);
@@ -145,6 +177,7 @@
     gap: 20px;
 
     h1 {
+      height: fit-content;
       font-size: 20px;
       font-weight: 700;
       background: linear-gradient(
@@ -156,6 +189,7 @@
       background-clip: text;
       color: transparent;
       text-align: center;
+      width: fit-content;
     }
   }
 
@@ -165,10 +199,11 @@
     gap: 20px;
     justify-content: center;
     align-items: center;
+    width: max-content;
   }
 
   .hidden {
-    visibility: hidden;
+    display: none;
   }
 
   button {
