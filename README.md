@@ -52,7 +52,7 @@ AudioTweaks bridges a blazingly fast Rust backend with a reactive frontend:
 1. Clone the repository:
 
 ```bash
-git clone [https://github.com/Mylan1173/audio-tweaks.git](https://github.com/Mylan1173/audio-tweaks.git)
+git clone https://github.com/Mylan1173/audio-tweaks.git
 cd audio-tweaks
 ```
 
@@ -97,9 +97,3 @@ Unlike standard video converters that blindly re-encode, AudioTweaks uses an int
 ## Contributing
 
 Contributions, issues, and feature requests are welcome! Feel free to check the issues page.
-
----
-
-## License
-
-This project is MIT licensed.
