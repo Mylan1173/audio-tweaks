@@ -2,44 +2,40 @@
   import {
     appState,
     startModal,
+    closeModal,
     openMedia,
-    setSelectedFile,
+    loadMediaProperties,
+    loadContentMediaProperties,
   } from "./utils/state.svelte.js";
   import { invoke } from "@tauri-apps/api/core";
   import VideoProperties from "./Properties/VideoProperties.svelte";
   import AudioProperties from "./Properties/AudioProperties.svelte";
   import SubtitleProperties from "./Properties/SubtitleProperties.svelte";
+  import PropertiesComparer from "./utils/PropertiesComparer.svelte";
   import Svg from "./utils/Svg.svelte";
 
-  let selectedFile = $derived(appState.selected_file);
-  let changes = $derived(appState.pendingChanges);
-
-  let fileData = $state(null);
+  let selectedMedia = $derived(appState.selectedMedia);
   let loading = $state(false);
 
   $effect.pre(() => {
-    if (!selectedFile) {
-      fileData = null;
+    if (!selectedMedia) {
+      appState.data.reset();
       return;
     }
 
-    const cachedData = appState.media_properties[selectedFile.path];
+    loading = true;
 
-    if (cachedData) {
-      fileData = cachedData;
-      loading = false;
-    } else {
-      loading = true;
-      invoke("get_media_streams", { path: selectedFile.path })
+    if (selectedMedia.mediaType === "file") {
+      appState.data.reset();
+      loadMediaProperties(selectedMedia.mediaPath)
         .then((res) => {
-          fileData = res;
-          appState.media_properties[selectedFile.path] = res;
-          loading = false;
+          appState.data.init(res);
         })
-        .catch((err) => {
-          console.error(err);
+        .finally(() => {
           loading = false;
         });
+    } else if (selectedMedia.mediaType === "folder") {
+      loadContentMediaProperties().then(() => (loading = false));
     }
   });
 
@@ -47,38 +43,60 @@
     if (!saveAs) {
       const answer = await startModal(
         "Ask",
-        "Are you sure you want to write changes to the file?",
+        "Are you sure you want to write changes to the file(s)?",
         { cancel: "Cancel", agree: "Yes" },
       );
       if (!answer) return;
     }
 
-    const targetPath = appState.selected_file.path;
-
     try {
-      startModal("ProgressBar", "Saving file...");
-      await invoke("save_media_props", {
-        filePath: targetPath,
-        changes: $state.snapshot(appState.pendingChanges),
-        saveAs,
-      });
+      if (
+        selectedMedia.mediaType === "File" ||
+        selectedMedia.mediaType === "file"
+      ) {
+        startModal("ProgressBar", "Saving file...");
+        await invoke("save_media_props", {
+          filePath: selectedMedia.mediaPath,
+          changes: appState.data.getPendingChanges(),
+          saveAs,
+        });
+      } else if (
+        selectedMedia.mediaType === "Folder" ||
+        selectedMedia.mediaType === "folder"
+      ) {
+        const batchPayload = appState.contentData.getBatchPayload();
 
-      appState.pendingChanges = {};
-      appState.media_properties[targetPath] = null;
-      fileData = null;
+        for (let i = 0; i < batchPayload.length; i++) {
+          startModal(
+            "ProgressBar",
+            `Processing file ${i + 1} of ${batchPayload.length}...`,
+          );
+          await invoke("save_media_props", {
+            filePath: batchPayload[i].filePath,
+            changes: batchPayload[i].changes,
+            saveAs,
+          });
+        }
+      }
 
-      await openMedia(appState.enviroment.isFile, true);
-      setSelectedFile(appState.selected_file.path, appState.selected_file.name);
+      await closeModal();
+
+      appState.data.reset();
+      appState.contentData.reset();
+
+      const isFileMode =
+        selectedMedia.mediaType === "File" ||
+        selectedMedia.mediaType === "file";
+      await openMedia(isFileMode, true);
     } catch (error) {
-      appState.modal = null;
+      await closeModal();
       console.error(error);
-      const again = await startModal("Ask", `File could not be saved!`, {
+      const again = await startModal("Ask", `File(s) could not be saved!`, {
         cancel: "Cancel",
         agree: "Try Again",
       });
-
       if (again) {
-        handleSave();
+        handleSave(saveAs);
       }
     }
   }
@@ -86,43 +104,47 @@
 
 <div
   class="media_properties"
-  class:is_selected={selectedFile}
-  class:not_selected={!selectedFile}
+  class:is_selected={selectedMedia}
+  class:not_selected={!selectedMedia}
 >
-  {#if selectedFile && !$effect.pending()}
+  {#if selectedMedia && !$effect.pending()}
     <div class="header">
-      <h1 class="file_name">{selectedFile.name}</h1>
-      <div
-        class="button_cont"
-        class:hidden={Object.keys(appState.pendingChanges).length === 0}
-      >
-        <button
-          class="discard"
-          onclick={() => {
-            loading = true;
-            appState.media_properties = {};
-            appState.pendingChanges = {};
-          }}><Svg name="mop" color="rgb(186, 197, 211)" /></button
-        >
-        <button class="save" onclick={() => handleSave(false)}
-          ><Svg name="save" color="rgb(186, 197, 211)" /><span>Save</span
-          ></button
-        >
-        <button class="save_as" onclick={() => handleSave(true)}
-          ><Svg name="save_as" color="rgb(186, 197, 211)" /><span>Save As</span
-          ></button
-        >
+      <div class="media-type">
+        <Svg name="file" color="rgb(186, 197, 211)" />
+      </div>
+      <div class="media-details">
+        <h1 class="file_name">{selectedMedia.mediaName}</h1>
+      </div>
+
+      <div class="button_cont">
+        {#if selectedMedia.mediaType === "folder"}
+          <button class="save" onclick={() => handleSave(false)}>
+            <Svg name="save" color="rgb(186, 197, 211)" />
+            <span>Apply Profile</span>
+          </button>
+        {:else}
+          <button class="save" onclick={() => handleSave(false)}>
+            <Svg name="save" color="rgb(186, 197, 211)" />
+            <span>Save</span>
+          </button>
+          <button class="save" onclick={() => handleSave(true)}>
+            <Svg name="save_as" color="rgb(186, 197, 211)" />
+            <span>Save As</span>
+          </button>
+        {/if}
       </div>
     </div>
-    {#if !loading && fileData}
-      <VideoProperties />
-      <AudioProperties />
-      <SubtitleProperties />
-      {JSON.stringify(fileData)}
-      <br /><br />
-      {JSON.stringify(changes)}
+    {#if !loading}
+      {#if appState.selectedMedia.mediaType === "file" && appState.data.initialized}
+        <VideoProperties />
+        <AudioProperties />
+        <SubtitleProperties />
+      {:else if appState.selectedMedia.mediaType === "folder" && appState.contentData.initialized}
+        <PropertiesComparer />
+      {/if}
+      {JSON.stringify(appState.data.getPendingChanges())}
     {:else}
-      <div>Loading...</div>
+      <div class="loader"></div>
     {/if}
   {:else}
     <div class="no_file">No file selected</div>
@@ -162,13 +184,13 @@
   }
 
   .header {
-    height: fit-content;
+    min-height: 58px;
+    height: auto;
     width: calc(100% - 20px);
     background-color: rgb(29, 41, 61);
     border: 1px solid rgb(69, 85, 108);
     border-radius: 10px;
     margin: 0 10px 10px 10px;
-    padding: 10px 10px 10px 20px;
 
     display: flex;
     flex-direction: row;
@@ -176,34 +198,43 @@
     justify-content: space-between;
     gap: 20px;
 
-    h1 {
-      height: fit-content;
-      font-size: 20px;
-      font-weight: 700;
-      background: linear-gradient(
-        to right,
-        rgb(83, 204, 255),
-        rgb(5, 255, 117)
-      );
-      -webkit-background-clip: text;
-      background-clip: text;
-      color: transparent;
-      text-align: center;
-      width: fit-content;
+    .media-details {
+      h1 {
+        height: fit-content;
+        font-size: 20px;
+        font-weight: 700;
+        background: linear-gradient(
+          to right,
+          rgb(83, 204, 255),
+          rgb(5, 255, 117)
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        text-align: center;
+        width: fit-content;
+      }
     }
-  }
 
-  .button_cont {
-    display: flex;
-    flex-direction: row;
-    gap: 20px;
-    justify-content: center;
-    align-items: center;
-    width: max-content;
-  }
+    .media-type {
+      width: 58px;
+      height: 100%;
+      overflow: hidden;
+      justify-self: flex-start;
+      display: grid;
+      place-items: center;
+      border-right: 1px solid rgb(69, 85, 108);
+    }
 
-  .hidden {
-    display: none;
+    .button_cont {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      justify-content: center;
+      align-items: center;
+      width: max-content;
+      margin-right: 10px;
+    }
   }
 
   button {
@@ -232,6 +263,20 @@
     }
     &:active {
       transform: scale(97%);
+    }
+  }
+
+  .loader {
+    margin: auto;
+    width: 60px;
+    aspect-ratio: 4;
+    background: radial-gradient(circle closest-side, #ffffff 90%, #ffffff00) 0 /
+      calc(100% / 3) 100% no-repeat;
+    animation: l2 1s steps(3) infinite;
+  }
+  @keyframes l2 {
+    to {
+      background-position: 150%;
     }
   }
 </style>

@@ -1,6 +1,6 @@
 [package]
 name = "audio-tweaks"
-version = "0.1.7"
+version = "0.1.8"
 description = "A GUI wrapper for the ffmpeg and ffprobe PEs with extended functionality."
 authors = ["Mylan1173"]
 edition = "2021"

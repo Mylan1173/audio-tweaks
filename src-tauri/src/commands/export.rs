@@ -112,7 +112,7 @@ pub async fn export_stream(
     Ok(())
 }
 
-async fn get_duration(app: &AppHandle, path: &str) -> Result<f64, String> {
+pub async fn get_duration(app: &AppHandle, path: &str) -> Result<f64, String> {
     let output = app
         .shell()
         .sidecar("ffprobe")

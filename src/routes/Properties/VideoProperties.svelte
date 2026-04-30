@@ -1,22 +1,137 @@
 <script>
+  // @ts-nocheck
+
   import { appState } from "../utils/state.svelte.js";
   import Svg from "../utils/Svg.svelte";
+  import Dropdown from "../utils/Dropdown.svelte";
+  import {
+    VIDEO_CODECS,
+    ASPECT_RATIOS,
+    PIXEL_FORMATS,
+    VIDEO_PROFILES,
+    FIELD_ORDER,
+  } from "../utils/maps.js";
 
-  let selectedFile = $derived(appState.selected_file);
-  let fileData = $derived(appState.media_properties[selectedFile.path]);
-  let isVideoPropOpen = $state(false);
+  let isVideoPropOpen = $state(true);
+  let videoStream = $derived(appState.data.getVideo());
+
+  let width = $derived(videoStream.width);
+  let height = $derived(videoStream.height);
+
+  function setWidth() {
+    appState.data.setVideo("width", width);
+  }
+  function setHeight() {
+    appState.data.setVideo("height", height);
+  }
+  function setCodec(code) {
+    appState.data.setVideo("codec", code);
+  }
+  function setAspectRatio(code) {
+    appState.data.setVideo("aspectRatio", code);
+  }
+  function setPixelFormat(code) {
+    appState.data.setVideo("pixelFormat", code);
+  }
+  function setProfile(code) {
+    appState.data.setVideo("profile", code);
+  }
 </script>
 
-<div class="video properties_cont">
+<div class="properties_cont">
   <button
     class="cont_title"
     onclick={() => (isVideoPropOpen = !isVideoPropOpen)}
-  >
-    <div class="chevron" class:open_chevron={isVideoPropOpen}>
+    ><div class="chevron" class:open_chevron={isVideoPropOpen}>
       <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
     </div>
-    <span>Video Properties</span>
-  </button>
+    <span>Video Properties</span></button
+  >
+  {#if isVideoPropOpen}
+    {#if appState.data.isVideo}
+      <div class="settings">
+        <div class="setting-container">
+          <div class="setting-name">Width (px)</div>
+          <div class="setting-value">
+            <input
+              class="setting-input"
+              type="number"
+              bind:value={width}
+              oninput={setWidth}
+            />
+          </div>
+        </div>
+        <div class="setting-container">
+          <div class="setting-name">Height (px)</div>
+          <div class="setting-value">
+            <input
+              class="setting-input"
+              type="number"
+              bind:value={height}
+              oninput={setHeight}
+            />
+          </div>
+        </div>
+        <div class="setting-container">
+          <div class="setting-name">Video Codec</div>
+          <div class="setting-value">
+            <Dropdown
+              id="video-codec"
+              options={{
+                choices: VIDEO_CODECS,
+              }}
+              value={videoStream.codecName}
+              setValue={setCodec}
+            />
+          </div>
+        </div>
+        <div class="setting-container">
+          <div class="setting-name">Aspect Ratio</div>
+          <div class="setting-value">
+            <Dropdown
+              id="video-aspect-ratio"
+              options={{
+                choices: ASPECT_RATIOS,
+              }}
+              value={videoStream.aspectRatio}
+              setValue={setAspectRatio}
+              showCode={false}
+            />
+          </div>
+        </div>
+        <div class="setting-container">
+          <div class="setting-name">Pixel Format</div>
+          <div class="setting-value">
+            <Dropdown
+              id="video-pixel-format"
+              options={{
+                choices: PIXEL_FORMATS,
+              }}
+              value={videoStream.pixelFormat}
+              setValue={setPixelFormat}
+            />
+          </div>
+        </div>
+        <div class="setting-container">
+          <div class="setting-name">Scan Type</div>
+          <div class="setting-value">
+            <Dropdown
+              id="video-field-order"
+              options={{
+                choices: FIELD_ORDER,
+              }}
+              value={videoStream.fieldOrder}
+              setValue={(code) => appState.data.setVideo("fieldOrder", code)}
+              searchable={false}
+              showCode={false}
+            />
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div class="no_file">No video data found</div>
+    {/if}
+  {/if}
 </div>
 
 <style>
@@ -30,34 +145,36 @@
 
     font-size: 15px;
     font-weight: 600;
+
     text-align: center;
     display: flex;
     flex-direction: column;
+  }
 
-    .cont_title {
-      background-color: inherit;
-      border: none;
-      display: flex;
-      flex-direction: row;
-      align-items: center;
+  .cont_title {
+    background-color: inherit;
+    border: none;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    width: fit-content;
 
-      &:hover {
-        cursor: pointer;
-      }
+    &:hover {
+      cursor: pointer;
+    }
 
-      .chevron {
-        display: grid;
-        place-items: center;
-        transition: 100ms all ease-in-out;
+    .chevron {
+      display: grid;
+      place-items: center;
+      transition: 100ms all ease-in-out;
 
-        transform: rotate(0);
-      }
+      transform: rotate(0);
+    }
 
-      span {
-        color: rgb(186, 197, 211);
-        font-size: 15px;
-        font-weight: 600;
-      }
+    span {
+      color: rgb(186, 197, 211);
+      font-size: 15px;
+      font-weight: 600;
     }
   }
 
@@ -65,82 +182,65 @@
     transform: rotate(90deg) !important;
   }
 
-  table {
-    border-collapse: collapse;
+  .settings {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
+    gap: 10px;
     margin: 10px;
 
-    thead > tr {
-      height: 40px;
-      th {
-        font-size: 15px;
+    .setting-container {
+      height: 50px;
+      /* width: 100%; */
+      width: 600px;
+      border-radius: 10px;
+      border: 1px solid rgb(69, 85, 108);
+      display: flex;
+      flex-direction: row;
+
+      .setting-name {
+        border-top-left-radius: 10px;
+        border-bottom-left-radius: 10px;
+        padding: 10px;
+        font-size: 17px;
+        height: 100%;
         font-weight: 600;
+        min-width: 200px;
+        width: fit-content;
+        background-color: rgb(19, 28, 46);
         color: rgb(186, 197, 211);
+        border-right: 1px solid rgb(69, 85, 108);
       }
-    }
-    tbody {
-      tr {
-        margin-top: 5px;
-        height: 40px;
-        td {
-          font-size: 15px;
-          font-weight: 600;
-        }
 
-        td:nth-child(1) {
-          background-color: rgb(19, 28, 46);
-        }
-        td:nth-child(2) {
-          text-transform: uppercase;
-          background-color: rgb(19, 28, 46);
-        }
-        td:nth-child(3),
-        td:nth-child(4) {
-          width: 10%;
-        }
-        td:nth-child(5) {
-          width: 10%;
-        }
-        &:hover .delete {
-          opacity: 1;
+      .setting-value {
+        padding: 10px 20px;
+        height: 100%;
+        width: 100%;
+        font-size: 16px;
+        font-weight: 500;
+        color: white;
+        display: grid;
+        place-items: center;
+
+        .setting-input {
+          border: none;
+          width: 100%;
+          background-color: transparent;
+          color: white;
+          font-size: 16px;
+          font-weight: 500;
+          height: 100%;
+          appearance: textfield;
+          -moz-appearance: textfield;
+
+          &:focus {
+            outline: none;
+          }
+          &::-webkit-outer-spin-button,
+          &::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+          }
         }
       }
-    }
-    tr:nth-child(1) td:nth-child(1) {
-      border-top-left-radius: 10px;
-    }
-    tr:nth-child(4) td:nth-child(1) {
-      border-bottom-left-radius: 10px;
-    }
-  }
-
-  .checkbox {
-    cursor: pointer;
-    background-color: transparent;
-    border: none;
-  }
-
-  .delete {
-    opacity: 0;
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    align-items: center;
-    background-color: rgb(202, 0, 0);
-    border-radius: 5px;
-    margin: 2px auto;
-    padding: 5px 10px;
-    gap: 10px;
-    border: none;
-    transition: 100ms all ease-in-out;
-    cursor: pointer;
-
-    span {
-      font-size: 15px;
-      font-weight: 600;
-      color: white;
-    }
-    &:active {
-      transform: scale(97%);
     }
   }
 </style>

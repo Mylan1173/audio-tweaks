@@ -2,7 +2,6 @@
   import { appState, openMedia } from "./utils/state.svelte.js";
   import Svg from "./utils/Svg.svelte";
   import MediaItem from "./MediaItem.svelte";
-  let env = $derived(appState.enviroment);
 </script>
 
 <div id="file_explorer">
@@ -17,7 +16,7 @@
     </button>
   </div>
 
-  <div class="env">{env.name}</div>
+  <div class="env">File Browser</div>
 
   <div id="added_paths">
     <MediaItem contents={appState.explorer} />

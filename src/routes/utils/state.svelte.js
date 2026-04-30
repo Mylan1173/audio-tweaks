@@ -1,19 +1,22 @@
+// @ts-nocheck
 import { invoke } from "@tauri-apps/api/core";
+import { MediaData, MediaDataComparer } from "./classes.svelte.js";
 
 export const appState = $state({
   explorer: [],
   enviroment: {},
-  selected_file: undefined,
-  media_properties: {},
+  selectedMedia: undefined,
   sidebarWidth: 330,
   modal: null,
-  pendingChanges: {},
+  data: new MediaData(),
+  contentData: new MediaDataComparer(),
   quickMenu: {
     isOpen: false,
     coords: { top: 0, left: 0 },
     options: [],
     resolve: null,
   },
+  activeDropdownId: null,
 });
 
 export async function startModal(type, title, options) {
@@ -34,48 +37,51 @@ export async function openMedia(isFile, doRefresh = false) {
       refreshPath: appState.enviroment.dataPath,
     });
 
-    appState.explorer = ret.data_type ? [ret] : ret.children;
+    appState.explorer = ret.data_type === "File" ? [ret] : ret.children;
   } else {
-    appState.selected_file = undefined;
-    appState.media_properties = {};
+    appState.selectedMedia = undefined;
     appState.enviroment = {};
 
     const ret = await invoke("select_media", {
       isFile,
-      refreshPath: undefined,
     });
-
-    if (isFile) {
-      appState.explorer = [ret];
-      appState.enviroment.name = "New Project";
-      appState.enviroment.dataPath = ret.data_path;
-      appState.enviroment.isFile = true;
-    } else {
-      appState.explorer = ret.children;
-      appState.enviroment.name = ret.data_name;
-      appState.enviroment.dataPath = ret.data_path;
-      appState.enviroment.isFile = false;
-    }
+    appState.explorer = [ret];
+    appState.enviroment.dataPath = ret.data_path;
+    appState.enviroment.isFile = true;
   }
 }
 
-export async function setSelectedFile(path, name) {
-  if (Object.keys(appState.pendingChanges).length !== 0) {
+export async function loadMediaProperties(mediaPath) {
+  return invoke("get_media_streams", { path: mediaPath });
+}
+
+export async function setSelectedMedia(mediaPath, mediaName, mediaType) {
+  if (appState.data.isPendingChanges) {
     const answer = await startModal(
       "Ask",
       "By changing files you discard the changes! Continue?",
       { cancel: "Cancel", agree: "Yes" },
     );
     if (answer) {
-      appState.selected_file = {};
-      appState.selected_file = { path, name };
-      appState.pendingChanges = {};
+      appState.selectedMedia = {};
+      appState.selectedMedia = { mediaPath, mediaName, mediaType };
+      appState.data.reset();
     }
   } else {
-    appState.selected_file = {};
-    appState.selected_file = { path, name };
-    appState.pendingChanges = {};
+    appState.selectedMedia = {};
+    appState.selectedMedia = { mediaPath, mediaName, mediaType };
+    appState.data.reset();
   }
+}
+
+export async function reloadMedia() {
+  appState.data.reset();
+
+  await openMedia(appState.enviroment.isFile, true);
+  setSelectedMedia(
+    appState.selectedMedia.mediaPath,
+    appState.selectedMedia.mediaName,
+  );
 }
 
 export function openQuickMenu(target, options) {
@@ -101,8 +107,55 @@ export function closeQuickMenu(value = null) {
   if (appState.quickMenu.resolve) {
     appState.quickMenu.resolve(value);
   }
-  console.log(124);
 
   appState.quickMenu.isOpen = false;
   appState.quickMenu.resolve = null;
+}
+
+export async function loadContentMediaProperties() {
+  appState.contentData.initialized = false;
+  appState.contentData.mediaDataFiles = [];
+
+  const fileList = getAllMediaFiles(appState.selectedMedia.mediaPath);
+
+  for (const file of fileList) {
+    await loadMediaProperties(file.data_path).then((resp) => {
+      resp.path = file.data_path;
+      appState.contentData.addMediaData(resp);
+    });
+  }
+
+  appState.contentData.initialized = true;
+}
+
+function getAllMediaFiles(folderPath) {
+  let fileList = [];
+
+  function findFolder(nodes, path) {
+    for (const node of nodes) {
+      if (node.data_path === path) return node.children;
+      if (node.data_type === "Folder" && node.children) {
+        const found = findFolder(node.children, path);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  const targetChildren = findFolder(appState.explorer, folderPath);
+
+  if (!targetChildren) return [];
+
+  function iterate(children) {
+    for (const media of children) {
+      if (media.data_type === "File") {
+        fileList.push(media);
+      } else if (media.data_type === "Folder" && media.children) {
+        iterate(media.children);
+      }
+    }
+  }
+
+  iterate(targetChildren);
+  return fileList;
 }

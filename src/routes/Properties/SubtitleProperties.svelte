@@ -2,122 +2,26 @@
   import { invoke } from "@tauri-apps/api/core";
   import { appState } from "../utils/state.svelte.js";
   import Svg from "../utils/Svg.svelte";
+  import { LANGUAGES } from "../utils/maps.js";
   import {
     openQuickMenu,
     startModal,
     closeModal,
   } from "../utils/state.svelte.js";
+  import { open } from "@tauri-apps/plugin-dialog";
 
-  let selectedFile = $derived(appState.selected_file);
-  let fileData = $derived(appState.media_properties[selectedFile.path]);
-  let sortedSubtitles = $derived(
-    fileData.streams
-      .filter((x) => x.codec_type === "subtitle")
-      .toSorted(sortSubtitles),
-  );
+  let selectedFile = $derived(appState.selectedMedia.mediaPath);
 
-  let oldFileData = $state(null);
+  let isSubsPropOpen = $state(false);
 
-  $effect(() => {
-    if (!oldFileData) {
-      oldFileData = JSON.parse(
-        JSON.stringify(appState.media_properties[selectedFile.path]),
-      );
-    }
-  });
-  let isSubsPropOpen = $state(true);
-
-  function sortSubtitles(a, b) {
-    if (a !== b) {
-      return a.tags.language.localeCompare(b.tags.language);
-    } else {
-      return a.tags.title.localeCompare(b.tags.title);
-    }
-  }
-
-  function updateChanges() {
-    // Update pendingChanges accordingly
-    const originalSubs = oldFileData.streams.filter(
-      (s) => s.codec_type === "subtitle",
-    );
-    const currentSubs = fileData.streams.filter(
-      (s) => s.codec_type === "subtitle",
-    );
-    // 2. Check if Default has changed
-    const oldDefaultIdx = originalSubs.findIndex(
-      (s) => s.disposition.default === 1,
-    );
-    const newDefaultIdx = currentSubs.findIndex(
-      (s) => s.disposition.default === 1,
-    );
-
-    // 3. Check if Forced has changed
-    const oldForced = originalSubs
-      .filter((s) => s.disposition.forced === 1)
-      .map((x) => getSubTypeIndex(x.index));
-    const newForced = currentSubs
-      .filter((s) => s.disposition.forced === 1)
-      .map((x) => getSubTypeIndex(x.index));
-
-    if (
-      JSON.stringify(oldForced) === JSON.stringify(newForced) &&
-      oldDefaultIdx === newDefaultIdx &&
-      appState.pendingChanges.subs.delete.length === 0
-    ) {
-      delete appState.pendingChanges.subs;
-    } else {
-      appState.pendingChanges.subs.default =
-        newDefaultIdx === -1 ? null : newDefaultIdx;
-      appState.pendingChanges.subs.forced = newForced;
-      if (!appState.pendingChanges.subs.delete)
-        appState.pendingChanges.subs.delete = [];
-    }
-  }
-
-  function changeSelectedSub(index, type) {
-    if (!oldFileData) return;
-
-    if (!appState.pendingChanges.subs) {
-      appState.pendingChanges.subs = {};
-    }
-
-    if (type === "default") {
-      // 1. Find the current default stream globally
-      const currentDefault = fileData.streams.find(
-        (s) => s.codec_type === "subtitle" && s.disposition.default === 1,
-      );
-
-      // 2. Logic for "at most 1"
-      if (currentDefault) {
-        // If user clicks the one that's already default, toggle it off
-        if (currentDefault.index === index) {
-          currentDefault.disposition.default = 0;
-        } else {
-          // Switch default from old to new
-          currentDefault.disposition.default = 0;
-          fileData.streams[index].disposition.default = 1;
-        }
-      } else {
-        // No current default, just set the new one
-        fileData.streams[index].disposition.default = 1;
-      }
-    } else if (type === "forced") {
-      // Toggle logic for forced
-      const val = fileData.streams[index].disposition.forced === 1 ? 0 : 1;
-      fileData.streams[index].disposition.forced = val;
-    }
-
-    updateChanges();
-  }
-
-  function getSubTypeIndex(globalIndex) {
-    return oldFileData.streams
-      .filter((s) => s.codec_type === "subtitle")
-      .findIndex((s) => s.index === globalIndex);
-  }
+  let isEditing = $state(false);
+  let editIndex = $state();
+  let editTitle = $state("");
+  let editLanguage = $state("");
 
   async function handleMore(e, idx) {
     const action = await openQuickMenu(e.currentTarget, [
+      { label: "Edit", value: "edit", icon: "edit" },
       { label: "Delete", value: "delete", icon: "delete_forever" },
       { label: "Export as SubRip", value: "export", icon: "export" },
     ]);
@@ -130,14 +34,7 @@
         "Are you sure you want to delete the subtitle track?",
       );
       if (answer) {
-        if (!appState.pendingChanges.subs) appState.pendingChanges.subs = {};
-        if (!appState.pendingChanges.subs.delete)
-          appState.pendingChanges.subs.delete = [];
-
-        appState.pendingChanges.subs.delete.push(getSubTypeIndex(idx));
-        appState.pendingChanges.subs.delete.sort();
-
-        updateChanges();
+        appState.data.setSubtitle("delete", idx);
       }
     } else if (action === "export") {
       startModal("ProgressBar", "Saving Track...");
@@ -145,17 +42,55 @@
         await invoke("export_stream", {
           inputPath: selectedFile.path,
           streamType: "subtitle",
-          streamIndex: getSubTypeIndex(idx),
+          streamIndex: idx,
         });
       } catch (err) {
         console.error(err);
       } finally {
         closeModal();
       }
+    } else if (action === "edit") {
+      isEditing = true;
+      editIndex = idx;
+      editTitle = appState.data.getSubtitles()[idx].title;
+      editLanguage = appState.data.getSubtitles()[idx].language;
     }
   }
 
-  function handleImport() {}
+  function applyEdit() {
+    isEditing = false;
+    if (editTitle !== appState.data.getSubtitles()[editIndex].title)
+      appState.data.setSubtitle("title", editIndex, editTitle);
+    if (editLanguage !== appState.data.getSubtitles()[editIndex].language)
+      appState.data.setSubtitle("language", editIndex, editLanguage);
+  }
+
+  function discardEdit() {
+    if (!editLanguage) return;
+    isEditing = false;
+    editIndex = null;
+  }
+
+  async function handleImport() {
+    const file = await open({
+      multiple: false,
+      directory: false,
+      filters: [
+        {
+          name: "SubRip",
+          extensions: ["srt"],
+        },
+      ],
+    });
+    if (file === null) return;
+
+    const index = appState.data.addSubtitle(file);
+    isEditing = true;
+    editIndex = index;
+
+    editTitle = appState.data.getSubtitles()[index].title;
+    editLanguage = appState.data.getSubtitles()[index].language;
+  }
 </script>
 
 <div class="subtitles properties_cont">
@@ -166,7 +101,7 @@
     <span>Subtitle Properties</span></button
   >
   {#if isSubsPropOpen}
-    {#if fileData.streams.filter((x) => x.codec_type === "subtitle").length > 0}
+    {#if appState.data.isSubtitle}
       <table>
         <thead
           ><tr
@@ -176,17 +111,33 @@
           ></thead
         >
         <tbody>
-          {#each sortedSubtitles as stream (stream.index)}
-            {#if !appState.pendingChanges.subs?.delete?.some((x) => x === getSubTypeIndex(stream.index))}
+          {#each appState.data.getSubtitles() as subtitle, index}
+            {#if !subtitle.isDeleted}
               <tr>
-                <td>{stream.tags.title ?? "-"}</td>
-                <td>{stream.tags.language}</td>
+                {#if isEditing && editIndex === index}
+                  <td><input type="text" bind:value={editTitle} /></td>
+                  <td
+                    ><select bind:value={editLanguage}>
+                      {#each LANGUAGES as lang}
+                        <option value={lang.code}>{lang.name}</option>
+                      {/each}
+                    </select></td
+                  >
+                {:else}
+                  <td>{subtitle.title}</td>
+                  <td
+                    >{subtitle.language
+                      ? LANGUAGES.find((x) => x.code === subtitle.language)
+                          ?.name
+                      : ""}</td
+                  >
+                {/if}
                 <td>
                   <button
                     class="checkbox"
-                    onclick={() => changeSelectedSub(stream.index, "default")}
+                    onclick={() => appState.data.setSubtitle("default", index)}
                   >
-                    {#if stream.disposition.default === 1}
+                    {#if subtitle.default}
                       <Svg name="check" color="white" />
                     {:else}
                       <Svg name="uncheck" color="white"></Svg>
@@ -196,28 +147,38 @@
                 <td>
                   <button
                     class="checkbox"
-                    onclick={() => changeSelectedSub(stream.index, "forced")}
+                    onclick={() => appState.data.setSubtitle("forced", index)}
                   >
-                    {#if stream.disposition.forced === 1}
+                    {#if subtitle.forced}
                       <Svg name="check" color="white" />
                     {:else}
                       <Svg name="uncheck" color="white"></Svg>
                     {/if}
                   </button>
                 </td>
-                <td
-                  ><button
-                    class="more"
-                    onclick={(e) => handleMore(e, stream.index)}
-                    ><Svg name="more" color="white" />
-                  </button></td
-                >
+                {#if isEditing && editIndex === index}
+                  <td>
+                    <button class="more" color="blue" onclick={applyEdit}
+                      ><Svg name="tick" /></button
+                    >
+                    <button class="more" color="red" onclick={discardEdit}
+                      ><Svg name="x" /></button
+                    >
+                  </td>
+                {:else}
+                  <td
+                    ><button class="more" onclick={(e) => handleMore(e, index)}
+                      ><Svg name="more" color="white" />
+                    </button></td
+                  >
+                {/if}
               </tr>
             {/if}
           {/each}
         </tbody>
       </table>
-      <button class="add-stream"
+
+      <button class="add-stream" onclick={handleImport}
         ><Svg name="add" color="rgb(186, 197, 211)" /><span
           >Add Subtitle Track</span
         ></button
@@ -249,6 +210,7 @@
       display: flex;
       flex-direction: row;
       align-items: center;
+      width: fit-content;
 
       &:hover {
         cursor: pointer;
@@ -296,10 +258,11 @@
         }
 
         td:nth-child(1) {
+          width: 50%;
           background-color: rgb(19, 28, 46);
         }
         td:nth-child(2) {
-          text-transform: uppercase;
+          width: 20%;
           background-color: rgb(19, 28, 46);
         }
         td:nth-child(3),
@@ -307,7 +270,10 @@
           width: 10%;
         }
         td:nth-child(5) {
-          width: 5%;
+          display: flex;
+          flex-direction: row;
+          justify-content: center;
+          align-items: center;
         }
       }
     }
@@ -325,14 +291,46 @@
     }
   }
 
+  td input[type="text"],
+  td select {
+    width: calc(100% - 10px);
+    height: calc(100% - 10px);
+    box-sizing: border-box;
+    background-color: rgb(29, 41, 61);
+    color: white;
+    border: 1px solid rgb(69, 85, 108);
+    border-radius: 5px;
+    font-size: 15px;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 0.2s;
+
+    text-align: center;
+    padding: 5px;
+  }
+
+  td input[type="text"]:focus,
+  td select:focus {
+    border-color: rgb(69, 85, 108);
+    background-color: rgb(29, 41, 61);
+  }
+
+  select option {
+    background-color: rgb(19, 28, 46);
+    color: white;
+    text-align: left;
+    border-radius: 10px;
+  }
+
   .add-stream {
-    margin: 5px auto;
+    margin: 0 auto;
     width: fit-content;
+    height: 40px;
     display: flex;
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    padding: 10px 10px;
+    padding: 10px;
     border-radius: 10px;
     border: 1px solid rgb(69, 85, 108);
     background-color: transparent;

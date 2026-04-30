@@ -1,18 +1,27 @@
 <script>
   import { listen } from "@tauri-apps/api/event";
+
   let modalProps = $props();
   let saveProgress = $state(0);
+  let displayTitle = $state(modalProps.title);
 
   listen("ffmpeg-progress", (event) => {
     saveProgress = event.payload;
-    if (event.payload == 100) {
-      setTimeout(() => modalProps.handleSelect(false), 200);
+    if (event.payload < 100) {
+      displayTitle = modalProps.title;
+    }
+  });
+
+  listen("app-progress", (event) => {
+    saveProgress = event.payload.progress;
+    if (event.payload.title) {
+      displayTitle = event.payload.title;
     }
   });
 </script>
 
 <div class="title">
-  <h1>{modalProps.title}</h1>
+  <h1>{displayTitle}</h1>
 </div>
 <div class="progress-bar">
   <div class="progress-value" style:width={`${saveProgress}%`}>
@@ -34,6 +43,7 @@
       font-size: 20px;
       font-weight: 600;
       text-align: center;
+      color: rgb(144, 161, 185);
     }
   }
   .progress-bar {

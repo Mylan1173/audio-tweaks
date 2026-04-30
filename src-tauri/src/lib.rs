@@ -15,6 +15,7 @@ pub fn run() {
                 explorer::select_media,
                 media::get_media_streams,
                 media::save_media_props,
+                media::get_audio_path,
                 export::export_stream
             ]
         )
