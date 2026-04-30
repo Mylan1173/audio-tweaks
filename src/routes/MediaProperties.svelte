@@ -50,20 +50,14 @@
     }
 
     try {
-      if (
-        selectedMedia.mediaType === "File" ||
-        selectedMedia.mediaType === "file"
-      ) {
+      if (selectedMedia.mediaType === "file") {
         startModal("ProgressBar", "Saving file...");
         await invoke("save_media_props", {
           filePath: selectedMedia.mediaPath,
           changes: appState.data.getPendingChanges(),
           saveAs,
         });
-      } else if (
-        selectedMedia.mediaType === "Folder" ||
-        selectedMedia.mediaType === "folder"
-      ) {
+      } else if (selectedMedia.mediaType === "folder") {
         const batchPayload = appState.contentData.getBatchPayload();
 
         for (let i = 0; i < batchPayload.length; i++) {
@@ -84,9 +78,7 @@
       appState.data.reset();
       appState.contentData.reset();
 
-      const isFileMode =
-        selectedMedia.mediaType === "File" ||
-        selectedMedia.mediaType === "file";
+      const isFileMode = selectedMedia.mediaType === "file";
       await openMedia(isFileMode, true);
     } catch (error) {
       await closeModal();
@@ -103,20 +95,24 @@
 </script>
 
 <div
-  class="media_properties"
+  class="media-properties"
   class:is_selected={selectedMedia}
   class:not_selected={!selectedMedia}
 >
   {#if selectedMedia && !$effect.pending()}
     <div class="header">
       <div class="media-type">
-        <Svg name="file" color="rgb(186, 197, 211)" />
+        {#if selectedMedia.mediaType === "folder"}
+          <Svg name="folder" color="rgb(186, 197, 211)" />
+        {:else}
+          <Svg name="file" color="rgb(186, 197, 211)" />
+        {/if}
       </div>
       <div class="media-details">
         <h1 class="file_name">{selectedMedia.mediaName}</h1>
       </div>
 
-      <div class="button_cont">
+      <div class="button-container">
         {#if selectedMedia.mediaType === "folder"}
           <button class="save" onclick={() => handleSave(false)}>
             <Svg name="save" color="rgb(186, 197, 211)" />
@@ -142,7 +138,6 @@
       {:else if appState.selectedMedia.mediaType === "folder" && appState.contentData.initialized}
         <PropertiesComparer />
       {/if}
-      {JSON.stringify(appState.data.getPendingChanges())}
     {:else}
       <div class="loader"></div>
     {/if}
@@ -152,7 +147,7 @@
 </div>
 
 <style>
-  .media_properties {
+  .media-properties {
     width: 100%;
     height: 100%;
     overflow-y: scroll;
@@ -226,7 +221,7 @@
       border-right: 1px solid rgb(69, 85, 108);
     }
 
-    .button_cont {
+    .button-container {
       display: flex;
       flex-direction: row;
       gap: 20px;

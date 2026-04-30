@@ -7,10 +7,9 @@ use tauri_plugin_shell::{ ShellExt, process::CommandEvent };
 pub async fn export_stream(
     app: AppHandle,
     input_path: String,
-    stream_type: String, // "video", "audio", "subtitle"
+    stream_type: String,
     stream_index: usize
 ) -> Result<(), String> {
-    // 1. Determine extension based on type
     let extension = match stream_type.as_str() {
         "video" => "mp4",
         "audio" => "mp3",
@@ -29,7 +28,6 @@ pub async fn export_stream(
         .and_then(|s| s.to_str())
         .unwrap_or("output");
 
-    // 2. Open Save Dialog
     let target_path = app
         .dialog()
         .file()
@@ -54,12 +52,9 @@ pub async fn export_stream(
         }
     };
 
-    // 3. Get Total Duration for progress calculation
     let total_duration = get_duration(&app, &input_path).await?;
     let total_micros = (total_duration * 1_000_000.0) as i64;
 
-    // 4. Build FFmpeg args
-    // We use "0:v:idx" or "0:s:idx" to target the specific stream type index
     let stream_specifier = match stream_type.as_str() {
         "video" => format!("0:v:{}", stream_index),
         "audio" => format!("0:a:{}", stream_index),
@@ -81,7 +76,6 @@ pub async fn export_stream(
         output_path.clone()
     ];
 
-    // 5. Spawn and monitor
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")

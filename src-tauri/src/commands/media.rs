@@ -97,13 +97,11 @@ pub async fn get_audio_path(
     input_path: String,
     stream_index: usize
 ) -> Result<String, String> {
-    // 1. Create a path for the temporary wav file in the app's cache directory
     let cache_dir = app
         .path()
         .app_cache_dir()
         .map_err(|e| e.to_string())?;
 
-    // Ensure the directory exists
     if !cache_dir.exists() {
         std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
     }
@@ -111,13 +109,9 @@ pub async fn get_audio_path(
     let output_path = cache_dir.join("temp_visualizer.wav");
     let output_path_str = output_path.to_str().ok_or("Invalid cache path")?.to_string();
 
-    // 2. Get Duration for progress calculation
-    // Note: Re-using your existing get_duration logic
     let total_duration = get_duration(&app, &input_path).await?;
     let total_micros = (total_duration * 1_000_000.0) as i64;
 
-    // 3. Build FFmpeg args
-    // We output to the file path instead of pipe:1
     let args = vec![
         "-i".to_string(),
         input_path,
@@ -128,15 +122,14 @@ pub async fn get_audio_path(
         "-acodec".to_string(),
         "pcm_s16le".to_string(),
         "-ar".to_string(),
-        "22050".to_string(), // Downsample for speed
+        "22050".to_string(),
         "-progress".to_string(),
-        "pipe:1".to_string(), // Progress to stdout
+        "pipe:1".to_string(),
         "-nostats".to_string(),
         "-y".to_string(),
         output_path_str.clone()
     ];
 
-    // 4. Spawn and monitor
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")
@@ -147,7 +140,6 @@ pub async fn get_audio_path(
 
     let mut last_percent = 0;
 
-    // 5. Loop through events (mostly for progress)
     while let Some(event) = rx.recv().await {
         if let CommandEvent::Stdout(line) = event {
             let out = String::from_utf8_lossy(&line);
@@ -165,10 +157,8 @@ pub async fn get_audio_path(
         }
     }
 
-    // Final signal
     app.emit("ffmpeg-progress", 100).ok();
 
-    // Return the path so the frontend can fetch it
     Ok(output_path_str)
 }
 
@@ -319,7 +309,6 @@ fn build_ffmpeg_args(
                     args.push(sr.clone());
                 }
 
-                // --- THE FIX: CHANNEL MAPPING & VOLUME VIA PAN FILTER ---
                 if
                     let (Some(new_ch), Some(cmap), Some(cvol)) = (
                         aud.newChannels,
@@ -334,20 +323,17 @@ fn build_ffmpeg_args(
                         let key = i.to_string();
                         if let Some(val) = cmap.get(&key) {
                             if !val.is_null() {
-                                // Safely extract input channel (handles JSON numbers or strings)
                                 let in_ch = val
                                     .as_f64()
                                     .or_else(|| val.as_str().and_then(|s| s.parse().ok()));
 
                                 if let Some(in_ch_f) = in_ch {
-                                    // Safely extract volume (handles JSON numbers or strings), default to 0.0
                                     let vol_val = cvol.get(&key).unwrap_or(&Value::Null);
                                     let vol_db = vol_val
                                         .as_f64()
                                         .or_else(|| vol_val.as_str().and_then(|s| s.parse().ok()))
                                         .unwrap_or(0.0);
 
-                                    // Convert dB to linear multiplier for the pan filter
                                     let multiplier = (10_f64).powf(vol_db / 20.0);
                                     pan_parts.push(
                                         format!("c{}={:.4}*c{}", i, multiplier, in_ch_f as i64)
@@ -360,7 +346,6 @@ fn build_ffmpeg_args(
                     args.push(format!("-filter:a:{}", out_a_idx));
                     args.push(format!("pan={}", pan_parts.join("|")));
                 } else if let Some(ac) = aud.newChannels {
-                    // Fallback to basic -ac if maps aren't present
                     args.push(format!("-ac:a:{}", out_a_idx));
                     args.push(ac.to_string());
                 }
@@ -438,7 +423,6 @@ fn build_ffmpeg_args(
                 flags.push("forced");
             }
 
-            // THE FIX: Changed from -disposition:s:s to -disposition:s
             args.push(format!("-disposition:s:{}", output_idx));
             args.push(if flags.is_empty() { "0".into() } else { flags.join("+") });
 

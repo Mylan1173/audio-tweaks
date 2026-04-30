@@ -33,11 +33,11 @@
   }
 </script>
 
-<div class="properties_cont">
+<div class="properties-container">
   <button
-    class="cont_title"
+    class="properties-container-title"
     onclick={() => (isAudioPropOpen = !isAudioPropOpen)}
-    ><div class="chevron" class:open_chevron={isAudioPropOpen}>
+    ><div class="chevron" class:open-chevron={isAudioPropOpen}>
       <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
     </div>
     <span>Audio Properties</span></button
@@ -165,7 +165,7 @@
 </div>
 
 <style>
-  .properties_cont {
+  .properties-container {
     width: calc(100% - 40px);
     background-color: rgb(29, 41, 61);
     border: 1px solid rgb(69, 85, 108);
@@ -181,7 +181,7 @@
     flex-direction: column;
   }
 
-  .cont_title {
+  .properties-container-title {
     background-color: inherit;
     border: none;
     display: flex;
@@ -208,7 +208,7 @@
     }
   }
 
-  .open_chevron {
+  .open-chevron {
     transform: rotate(90deg) !important;
   }
 

@@ -19,7 +19,7 @@
 
     const isClickInside = path.some(
       (element) =>
-        element.classList && element.classList.contains("menu_content"),
+        element.classList && element.classList.contains("menu-content"),
     );
 
     if (!isClickInside) {
@@ -29,15 +29,15 @@
 />
 
 {#if menu.isOpen}
-  <div class="quick_menu_overlay" transition:fade={{ duration: 60 }}>
+  <div class="quick-menu-overlay" transition:fade={{ duration: 60 }}>
     <div
-      class="menu_content"
+      class="menu-content"
       class:flipped={shouldFlipAbove}
       style:top="{menu.coords.top}px"
       style:left="{menu.coords.left}px"
     >
       {#each menu.options as option (option.value)}
-        <button onclick={() => closeQuickMenu(option.value)} class="menu_item">
+        <button onclick={() => closeQuickMenu(option.value)} class="menu-item">
           {#if option.icon}
             <Svg name={option.icon} size={18} />
           {/if}
@@ -49,14 +49,14 @@
 {/if}
 
 <style>
-  .quick_menu_overlay {
+  .quick-menu-overlay {
     position: fixed;
     inset: 0;
     z-index: 9999;
     pointer-events: auto;
   }
 
-  .menu_content {
+  .menu-content {
     position: fixed;
     background-color: rgb(29, 41, 61);
     border: 1px solid rgb(69, 85, 108);
@@ -75,7 +75,7 @@
     transform: translate(-50%, calc(-100% - 45px));
   }
 
-  .menu_item {
+  .menu-item {
     background: transparent;
     border: none;
     color: rgb(186, 197, 211);

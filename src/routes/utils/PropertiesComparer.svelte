@@ -240,9 +240,12 @@
   </div>
 
   {#each Object.entries(schemas) as [category, schema]}
-    <div class="properties_cont">
-      <button class="cont_title" onclick={() => toggleSection(category)}>
-        <div class="chevron" class:open_chevron={isPropOpen[category]}>
+    <div class="properties-container">
+      <button
+        class="properties-container-title"
+        onclick={() => toggleSection(category)}
+      >
+        <div class="chevron" class:open-chevron={isPropOpen[category]}>
           <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
         </div>
         <span style="text-transform: capitalize;">{category} Batch Rules</span>
@@ -374,7 +377,7 @@
     display: none;
   }
 
-  .properties_cont {
+  .properties-container {
     width: calc(100% - 40px);
     background-color: rgb(29, 41, 61);
     border: 1px solid rgb(69, 85, 108);
@@ -385,7 +388,7 @@
     flex-direction: column;
   }
 
-  .cont_title {
+  .properties-container-title {
     background-color: transparent;
     border: none;
     display: flex;
@@ -394,6 +397,12 @@
     width: fit-content;
     cursor: pointer;
     padding-bottom: 10px;
+    span {
+      color: rgb(186, 197, 211);
+      font-size: 15px;
+      font-weight: 600;
+      margin-left: 5px;
+    }
   }
   .chevron {
     display: grid;
@@ -401,16 +410,9 @@
     transition: 150ms transform ease-in-out;
     transform: rotate(0);
   }
-  .open_chevron {
+  .open-chevron {
     transform: rotate(90deg) !important;
   }
-  .cont_title span {
-    color: rgb(186, 197, 211);
-    font-size: 15px;
-    font-weight: 600;
-    margin-left: 5px;
-  }
-
   .settings-list {
     display: flex;
     flex-direction: column;

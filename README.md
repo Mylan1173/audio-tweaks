@@ -20,12 +20,10 @@ Built with **Tauri**, **Svelte 5**, and powered by **FFmpeg**, AudioTweaks allow
 ## Gallery
 
 <div align="center">
-  <!-- REPLACE THESE PATHS ONCE YOU TAKE THE SCREENSHOTS! -->
   <img src="./assets/dashboard.png" alt="Main Dashboard" width="48%">
   <img src="./assets/batch-editor.png" alt="Batch Profile Editor" width="48%">
   <br>
   <img src="./assets/audio-tools.png" alt="Audio Visualizer and Remapper" width="48%">
-  <img src="./assets/file-explorer.png" alt="File Browser" width="48%">
 </div>
 
 ---

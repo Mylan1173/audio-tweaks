@@ -103,7 +103,7 @@
       if (!audioCtx) audioCtx = new window.AudioContext();
 
       const tempPath = await invoke("get_audio_path", {
-        inputPath: appState.selected_file.path,
+        inputPath: appState.selectedMedia.mediaPath,
         streamIndex: activeStreamIdx,
       });
 

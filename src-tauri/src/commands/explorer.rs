@@ -20,7 +20,7 @@ fn validate_file(path: PathBuf) -> bool {
 
     match path.extension().and_then(|ext| ext.to_str()) {
         Some(ext) => allowlist.contains(&ext.to_lowercase().as_str()),
-        None => false, // No extension found
+        None => false,
     }
 }
 

@@ -93,9 +93,11 @@
   }
 </script>
 
-<div class="subtitles properties_cont">
-  <button class="cont_title" onclick={() => (isSubsPropOpen = !isSubsPropOpen)}
-    ><div class="chevron" class:open_chevron={isSubsPropOpen}>
+<div class="subtitles properties-container">
+  <button
+    class="properties-container-title"
+    onclick={() => (isSubsPropOpen = !isSubsPropOpen)}
+    ><div class="chevron" class:open-chevron={isSubsPropOpen}>
       <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
     </div>
     <span>Subtitle Properties</span></button
@@ -190,7 +192,7 @@
 </div>
 
 <style>
-  .properties_cont {
+  .properties-container {
     width: calc(100% - 40px);
     background-color: rgb(29, 41, 61);
     border: 1px solid rgb(69, 85, 108);
@@ -204,7 +206,7 @@
     display: flex;
     flex-direction: column;
 
-    .cont_title {
+    .properties-container-title {
       background-color: inherit;
       border: none;
       display: flex;
@@ -232,7 +234,7 @@
     }
   }
 
-  .open_chevron {
+  .open-chevron {
     transform: rotate(90deg) !important;
   }
 

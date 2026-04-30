@@ -4,7 +4,7 @@
   import MediaItem from "./MediaItem.svelte";
 </script>
 
-<div id="file_explorer">
+<div id="file-explorer">
   <div id="buttons">
     <button onclick={() => openMedia(true)}>
       <Svg name="file_open" color="rgb(186, 197, 211)" /><span>Open File</span>
@@ -18,13 +18,13 @@
 
   <div class="env">File Browser</div>
 
-  <div id="added_paths">
+  <div id="added-paths">
     <MediaItem contents={appState.explorer} />
   </div>
 </div>
 
 <style>
-  #file_explorer {
+  #file-explorer {
     width: 100%;
     height: calc(100vh - 20px);
     border: 1px solid rgb(69, 85, 108);
@@ -72,7 +72,7 @@
     }
   }
 
-  #added_paths {
+  #added-paths {
     display: flex;
     flex-direction: column;
     padding: 0 0 5px 0;

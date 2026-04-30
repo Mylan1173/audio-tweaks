@@ -15,9 +15,12 @@
 </script>
 
 {#each currentContents as item, index (index)}
-  <div class="path_cont">
+  <div class="path-container">
     {#if item.data_type === "Folder"}
-      <div class="path">
+      <div
+        class="path"
+        class:selected={appState.selectedMedia?.mediaPath === item.data_path}
+      >
         <button
           onclick={() => openCloseMenu(index)}
           style="padding-left: {5 * level}px;"
@@ -46,7 +49,7 @@
     {:else if item.data_type === "File"}
       <button
         class="path"
-        class:selected={appState.selectedMedia?.mediaName === item.data_name}
+        class:selected={appState.selectedMedia?.mediaPath === item.data_path}
         style="padding-left: {5 * level + 25}px;"
         onclick={() => setSelectedMedia(item.data_path, item.data_name, "file")}
       >
@@ -58,7 +61,7 @@
 {/each}
 
 <style>
-  .path_cont {
+  .path-container {
     width: 100%;
     display: flex;
     flex-direction: column;
