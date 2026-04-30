@@ -51,7 +51,7 @@
 
     try {
       if (selectedMedia.mediaType === "file") {
-        startModal("ProgressBar", "Saving file...");
+        startModal("Console", "Saving file...");
         await invoke("save_media_props", {
           filePath: selectedMedia.mediaPath,
           changes: appState.data.getPendingChanges(),
@@ -62,7 +62,7 @@
 
         for (let i = 0; i < batchPayload.length; i++) {
           startModal(
-            "ProgressBar",
+            "Console",
             `Processing file ${i + 1} of ${batchPayload.length}...`,
           );
           await invoke("save_media_props", {
@@ -78,8 +78,7 @@
       appState.data.reset();
       appState.contentData.reset();
 
-      const isFileMode = selectedMedia.mediaType === "file";
-      await openMedia(isFileMode, true);
+      await openMedia(appState.enviroment.isFile, true);
     } catch (error) {
       await closeModal();
       console.error(error);

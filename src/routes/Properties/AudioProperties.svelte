@@ -1,12 +1,15 @@
 <script>
+  import { invoke } from "@tauri-apps/api/core";
   import { appState } from "../utils/state.svelte.js";
   import Svg from "../utils/Svg.svelte";
   import Dropdown from "../utils/Dropdown.svelte";
   import AudioVisualizer from "../utils/AudioVisualizer.svelte";
   import ChannelRemapper from "../utils/ChannelRemapper.svelte";
   import { AUDIO_CODECS, SAMPLE_RATES, LANGUAGES } from "../utils/maps.js";
+  import { startModal, closeModal } from "../utils/state.svelte.js";
+  import { open } from "@tauri-apps/plugin-dialog";
 
-  let isAudioPropOpen = $state(false);
+  let isAudioPropOpen = $state(true);
   let activeStreamIdx = $state(0);
   let activeStream = $derived(appState.data.getAudio(activeStreamIdx));
 
@@ -30,6 +33,60 @@
   }
   function setLanguage(code) {
     appState.data.setAudio("language", activeStreamIdx, code);
+  }
+
+  async function handleImport() {
+    const file = await open({
+      multiple: false,
+      directory: false,
+      filters: [
+        {
+          name: "Audio",
+          extensions: [
+            "mp3",
+            "wav",
+            "flac",
+            "aac",
+            "m4a",
+            "ogg",
+            "mka",
+            "ac3",
+            "eac3",
+          ],
+        },
+      ],
+    });
+    if (file === null) return;
+
+    startModal("Console", "Analyzing imported file...");
+
+    try {
+      const res = await invoke("get_media_streams", { path: file });
+
+      const rawAudio = res.streams.find((s) => s.codec_type === "audio") || {};
+
+      const newIndex = appState.data.addAudio(file, rawAudio);
+      activeStreamIdx = newIndex;
+    } catch (err) {
+      console.error(err);
+    } finally {
+      closeModal();
+    }
+  }
+
+  async function handleExport() {
+    startModal("Console", "Saving Track...");
+    try {
+      await invoke("export_stream", {
+        inputPath: appState.selectedMedia.mediaPath,
+        streamType: "audio",
+        streamIndex: activeStreamIdx,
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      closeModal();
+    }
   }
 </script>
 
@@ -59,14 +116,14 @@
             showCode={false}
           />
         </div>
-        <button class="add-stream"
-          ><Svg name="delete_forever" color="rgb(186, 197, 211)" /><span
-            >Delete Audio Track</span
-          ></button
-        >
-        <button class="add-stream"
+        <button class="selector-button" onclick={handleImport}
           ><Svg name="add" color="rgb(186, 197, 211)" /><span
             >Add Audio Track</span
+          ></button
+        >
+        <button class="selector-button" onclick={handleExport}
+          ><Svg name="export" color="rgb(186, 197, 211)" /><span
+            >Export Audio Track</span
           ></button
         >
       </div>
@@ -74,89 +131,109 @@
         <hr />
         <div class="settings">
           <div class="setting-container">
-            <div class="setting-name">Default Track</div>
+            <div class="setting-name">Delete Track</div>
             <div class="setting-value">
               <button
-                class="toggle-btn {activeStream.default ? 'toggle-active' : ''}"
+                class="toggle-btn {activeStream.isDeleted
+                  ? 'toggle-active'
+                  : ''}"
                 onclick={() =>
-                  appState.data.setAudio("default", activeStreamIdx, true)}
-                disabled={activeStream.default}
+                  appState.data.setAudio("delete", activeStreamIdx)}
               >
-                {activeStream.default ? "True" : "False"}
+                {activeStream.isDeleted ? "True" : "False"}
               </button>
             </div>
           </div>
-          <div class="setting-container">
-            <div class="setting-name">Audio Codec</div>
-            <div class="setting-value">
-              <Dropdown
-                id="audio-codec"
-                options={{
-                  choices: Object.entries(AUDIO_CODECS).map((x) => ({
-                    code: x[0],
-                    name: x[1],
-                  })),
-                }}
-                value={activeStream.codecName}
-                setValue={setCodec}
-              />
-            </div>
-          </div>
-          <div class="setting-container">
-            <div class="setting-name">Bitrate (bit/s)</div>
-            <div class="setting-value">
-              <input
-                class="setting-input"
-                type="number"
-                bind:value={bitrate}
-                oninput={setBitrate}
-              />
-            </div>
-          </div>
-          <div class="setting-container">
-            <div class="setting-name">Sample Rate</div>
-            <div class="setting-value">
-              <Dropdown
-                id="audio-srate"
-                options={{
-                  choices: SAMPLE_RATES,
-                }}
-                value={activeStream.sampleRate}
-                setValue={setSampleRate}
-              />
-            </div>
-          </div>
-          <div class="setting-container">
-            <div class="setting-name">Language</div>
-            <div class="setting-value">
-              <Dropdown
-                id="audio-language"
-                options={{
-                  choices: LANGUAGES,
-                }}
-                value={activeStream.language}
-                setValue={setLanguage}
-              />
-            </div>
-          </div>
-          {#if ["flac", "alac", "pcm_s16le", "pcm_s24le", "truehd", "mlp"].includes(activeStream.bitDepth)}
+          {#if !activeStream.isDeleted}
             <div class="setting-container">
-              <div class="setting-name">Bit Depth</div>
+              <div class="setting-name">Default Track</div>
+              <div class="setting-value">
+                <button
+                  class="toggle-btn {activeStream.default
+                    ? 'toggle-active'
+                    : ''}"
+                  onclick={() =>
+                    appState.data.setAudio("default", activeStreamIdx, true)}
+                  disabled={activeStream.default}
+                >
+                  {activeStream.default ? "True" : "False"}
+                </button>
+              </div>
+            </div>
+            <div class="setting-container">
+              <div class="setting-name">Audio Codec</div>
+              <div class="setting-value">
+                <Dropdown
+                  id="audio-codec"
+                  options={{
+                    choices: Object.entries(AUDIO_CODECS).map((x) => ({
+                      code: x[0],
+                      name: x[1],
+                    })),
+                  }}
+                  value={activeStream.codecName}
+                  setValue={setCodec}
+                />
+              </div>
+            </div>
+            <div class="setting-container">
+              <div class="setting-name">Bitrate (bit/s)</div>
               <div class="setting-value">
                 <input
                   class="setting-input"
                   type="number"
-                  bind:value={bitdepth}
-                  oninput={setBitDepth}
+                  bind:value={bitrate}
+                  oninput={setBitrate}
                 />
               </div>
             </div>
+            <div class="setting-container">
+              <div class="setting-name">Sample Rate</div>
+              <div class="setting-value">
+                <Dropdown
+                  id="audio-srate"
+                  options={{
+                    choices: SAMPLE_RATES,
+                  }}
+                  value={activeStream.sampleRate}
+                  setValue={setSampleRate}
+                />
+              </div>
+            </div>
+            <div class="setting-container">
+              <div class="setting-name">Language</div>
+              <div class="setting-value">
+                <Dropdown
+                  id="audio-language"
+                  options={{
+                    choices: LANGUAGES,
+                  }}
+                  value={activeStream.language}
+                  setValue={setLanguage}
+                />
+              </div>
+            </div>
+            {#if ["flac", "alac", "pcm_s16le", "pcm_s24le", "truehd", "mlp"].includes(activeStream.bitDepth)}
+              <div class="setting-container">
+                <div class="setting-name">Bit Depth</div>
+                <div class="setting-value">
+                  <input
+                    class="setting-input"
+                    type="number"
+                    bind:value={bitdepth}
+                    oninput={setBitDepth}
+                  />
+                </div>
+              </div>
+            {/if}
           {/if}
         </div>
-        <hr />
-        <AudioVisualizer {activeStreamIdx} />
+        {#if !activeStream.isDeleted}
+          <hr />
+          <AudioVisualizer {activeStreamIdx} />
 
-        <ChannelRemapper {activeStreamIdx} />
+          <ChannelRemapper {activeStreamIdx} />
+        {/if}
       {/if}
     {:else}
       <div class="no_file">No audio data found</div>
@@ -240,7 +317,7 @@
       border-radius: 10px;
     }
   }
-  .add-stream {
+  .selector-button {
     width: fit-content;
     height: 40px;
     display: flex;

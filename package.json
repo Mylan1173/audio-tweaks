@@ -1,7 +1,11 @@
 {
   "name": "audio-tweaks",
-  "version": "0.1.8",
+  "version": "0.2.1",
   "description": "",
+  "author": {
+    "name": "Mylan1173",
+    "url": "https://github.com/Mylan1173"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite dev",

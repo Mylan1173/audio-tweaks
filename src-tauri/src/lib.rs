@@ -1,6 +1,6 @@
 mod commands;
 
-use commands::{ explorer, media, export };
+use commands::{ explorer, media, export, profiles };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,7 +16,9 @@ pub fn run() {
                 media::get_media_streams,
                 media::save_media_props,
                 media::get_audio_path,
-                export::export_stream
+                export::export_stream,
+                profiles::export_profile,
+                profiles::import_profile
             ]
         )
         .run(tauri::generate_context!())

@@ -10,7 +10,7 @@ pub async fn export_stream(
     stream_type: String,
     stream_index: usize
 ) -> Result<(), String> {
-    let extension = match stream_type.as_str() {
+    let default_ext = match stream_type.as_str() {
         "video" => "mp4",
         "audio" => "mp3",
         "subtitle" => "srt",
@@ -22,17 +22,38 @@ pub async fn export_stream(
         .extension()
         .and_then(|ext| ext.to_str())
         .unwrap_or("mkv");
-
     let file_stem = path
         .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("output");
 
-    let target_path = app
+    let mut dialog_builder = app
         .dialog()
         .file()
-        .add_filter("Export Format", &[extension])
-        .set_title(format!("Export {} Stream", stream_type))
+        .set_title(format!("Export {} Stream", stream_type));
+
+    if stream_type == "audio" {
+        dialog_builder = dialog_builder
+            .add_filter("MP3 Audio", &["mp3"])
+            .add_filter("WAV Audio (Uncompressed)", &["wav"])
+            .add_filter("FLAC Audio (Lossless)", &["flac"])
+            .add_filter("AAC Audio", &["aac"])
+            .add_filter("M4A Audio", &["m4a"])
+            .add_filter("Ogg Vorbis", &["ogg"])
+            .add_filter("Matroska Audio (Zero-Loss Copy)", &["mka"]);
+    } else if stream_type == "video" {
+        dialog_builder = dialog_builder
+            .add_filter("MP4 Video", &["mp4"])
+            .add_filter("Matroska Video", &["mkv"])
+            .add_filter("AVI Video", &["avi"]);
+    } else if stream_type == "subtitle" {
+        dialog_builder = dialog_builder
+            .add_filter("SubRip Subtitle", &["srt"])
+            .add_filter("Advanced SubStation Alpha", &["ass"])
+            .add_filter("WebVTT", &["vtt"]);
+    }
+
+    let target_path = dialog_builder
         .set_file_name(
             format!(
                 "{}_{}_track-{}_index-{}.{}",
@@ -40,7 +61,7 @@ pub async fn export_stream(
                 file_extension,
                 stream_type,
                 stream_index,
-                extension
+                default_ext
             )
         )
         .blocking_save_file();
@@ -52,8 +73,12 @@ pub async fn export_stream(
         }
     };
 
-    let total_duration = get_duration(&app, &input_path).await?;
-    let total_micros = (total_duration * 1_000_000.0) as i64;
+    let output_path_buf = Path::new(&output_path);
+    let chosen_ext = output_path_buf
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or(default_ext)
+        .to_lowercase();
 
     let stream_specifier = match stream_type.as_str() {
         "video" => format!("0:v:{}", stream_index),
@@ -62,19 +87,50 @@ pub async fn export_stream(
         _ => format!("0:{}", stream_index),
     };
 
-    let args = vec![
-        "-i".to_string(),
-        input_path,
-        "-map".to_string(),
-        stream_specifier,
-        "-c".to_string(),
-        "copy".to_string(),
-        "-progress".to_string(),
-        "pipe:1".to_string(),
-        "-nostats".to_string(),
-        "-y".to_string(),
-        output_path.clone()
-    ];
+    let mut args = vec!["-i".to_string(), input_path, "-map".to_string(), stream_specifier];
+
+    if stream_type == "audio" {
+        match chosen_ext.as_str() {
+            "mp3" => {
+                args.push("-c:a".to_string());
+                args.push("libmp3lame".to_string());
+                args.push("-q:a".to_string());
+                args.push("2".to_string());
+            }
+            "wav" => {
+                args.push("-c:a".to_string());
+                args.push("pcm_s16le".to_string());
+            }
+            "flac" => {
+                args.push("-c:a".to_string());
+                args.push("flac".to_string());
+            }
+            "aac" | "m4a" => {
+                args.push("-c:a".to_string());
+                args.push("aac".to_string());
+                args.push("-b:a".to_string());
+                args.push("192k".to_string());
+            }
+            "ogg" => {
+                args.push("-c:a".to_string());
+                args.push("libvorbis".to_string());
+                args.push("-q:a".to_string());
+                args.push("4".to_string());
+            }
+            _ => {
+                args.push("-c:a".to_string());
+                args.push("copy".to_string());
+            }
+        }
+    } else {
+        args.push("-c".to_string());
+        args.push("copy".to_string());
+    }
+
+    args.push("-y".to_string());
+    args.push(output_path.clone());
+
+    let _ = app.emit("ffmpeg-log", format!("> ffmpeg {}", args.join(" ")));
 
     let (mut rx, _child) = app
         .shell()
@@ -84,47 +140,12 @@ pub async fn export_stream(
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    let mut last_percent = 0;
     while let Some(event) = rx.recv().await {
-        if let CommandEvent::Stdout(line) = event {
+        if let CommandEvent::Stderr(line) = event {
             let out = String::from_utf8_lossy(&line);
-            if out.contains("out_time_ms=") && total_micros > 0 {
-                let ms_str = out.split('=').last().unwrap_or("0").trim();
-                if let Ok(current_micros) = ms_str.parse::<i64>() {
-                    let percent = (((current_micros as f64) / (total_micros as f64)) *
-                        100.0) as i32;
-                    if percent > last_percent && percent <= 100 {
-                        last_percent = percent;
-                        let _ = app.emit("ffmpeg-progress", percent);
-                    }
-                }
-            }
+            let _ = app.emit("ffmpeg-log", out.to_string());
         }
     }
 
-    app.emit("ffmpeg-progress", 100).ok();
     Ok(())
-}
-
-pub async fn get_duration(app: &AppHandle, path: &str) -> Result<f64, String> {
-    let output = app
-        .shell()
-        .sidecar("ffprobe")
-        .map_err(|e| e.to_string())?
-        .args([
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            path,
-        ])
-        .output().await
-        .map_err(|e| e.to_string())?;
-
-    String::from_utf8_lossy(&output.stdout)
-        .trim()
-        .parse::<f64>()
-        .map_err(|e| e.to_string())
 }

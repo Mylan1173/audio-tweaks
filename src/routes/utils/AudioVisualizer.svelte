@@ -98,7 +98,7 @@
   });
 
   async function loadAudio() {
-    startModal("ProgressBar", "Extracting Audio...");
+    startModal("Console", "Extracting Audio...");
     try {
       if (!audioCtx) audioCtx = new window.AudioContext();
 

@@ -1,6 +1,6 @@
 <script>
   // @ts-nocheck
-
+  import { invoke } from "@tauri-apps/api/core";
   import { appState } from "../utils/state.svelte.js";
   import Dropdown from "../utils/Dropdown.svelte";
   import Svg from "../utils/Svg.svelte";
@@ -189,24 +189,24 @@
     ],
   });
 
-  function handleExport() {
-    const data = comparer.exportProfile();
-    const blob = new Blob([data], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "batch_profile.json";
-    a.click();
-    URL.revokeObjectURL(url);
+  async function handleExport() {
+    try {
+      const data = comparer.exportProfile();
+      await invoke("export_profile", { profileData: data });
+    } catch (err) {
+      console.error("Failed to export profile:", err);
+    }
   }
 
-  function handleImport(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => comparer.importProfile(event.target.result);
-    reader.readAsText(file);
-    e.target.value = "";
+  async function handleImport() {
+    try {
+      const jsonString = await invoke("import_profile");
+      if (jsonString) {
+        comparer.importProfile(jsonString);
+      }
+    } catch (err) {
+      console.error("Failed to import profile:", err);
+    }
   }
 
   function toggleSection(sec) {
@@ -224,18 +224,12 @@
   <div class="profile-toolbar">
     <div class="toolbar-title">Batch Profile Editor</div>
     <div class="toolbar-actions">
-      <button class="action-btn" onclick={handleExport}
-        ><Svg name="export" color="rgb(186, 197, 211)" />Export Profile</button
-      >
-      <label class="action-btn">
-        <input
-          type="file"
-          accept=".json"
-          onchange={handleImport}
-          class="hidden-input"
-        />
+      <button class="action-btn" onclick={handleExport}>
+        <Svg name="export" color="rgb(186, 197, 211)" />Export Profile
+      </button>
+      <button class="action-btn" onclick={handleImport}>
         <Svg name="import" color="rgb(186, 197, 211)" />Import Profile
-      </label>
+      </button>
     </div>
   </div>
 
@@ -372,9 +366,6 @@
     background-color: rgb(39, 51, 71);
     color: white;
     border-color: rgb(186, 197, 211);
-  }
-  .hidden-input {
-    display: none;
   }
 
   .properties-container {

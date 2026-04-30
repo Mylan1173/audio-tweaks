@@ -32,12 +32,13 @@ export async function openMedia(isFile, doRefresh = false) {
   appState.explorer = [];
 
   if (doRefresh) {
+    appState.selectedMedia = undefined;
     const ret = await invoke("select_media", {
       isFile,
       refreshPath: appState.enviroment.dataPath,
     });
 
-    appState.explorer = ret.data_type === "File" ? [ret] : ret.children;
+    appState.explorer = [ret];
   } else {
     appState.selectedMedia = undefined;
     appState.enviroment = {};
@@ -47,7 +48,7 @@ export async function openMedia(isFile, doRefresh = false) {
     });
     appState.explorer = [ret];
     appState.enviroment.dataPath = ret.data_path;
-    appState.enviroment.isFile = true;
+    appState.enviroment.isFile = isFile;
   }
 }
 

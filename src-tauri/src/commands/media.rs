@@ -4,7 +4,6 @@ use tauri_plugin_shell::{ ShellExt, process::CommandEvent };
 use std::{ collections::HashMap, fs, path::Path, thread, time::Duration };
 use serde::{ Deserialize, Serialize };
 use serde_json::Value;
-use crate::export::get_duration;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[allow(non_snake_case)]
@@ -109,9 +108,6 @@ pub async fn get_audio_path(
     let output_path = cache_dir.join("temp_visualizer.wav");
     let output_path_str = output_path.to_str().ok_or("Invalid cache path")?.to_string();
 
-    let total_duration = get_duration(&app, &input_path).await?;
-    let total_micros = (total_duration * 1_000_000.0) as i64;
-
     let args = vec![
         "-i".to_string(),
         input_path,
@@ -130,6 +126,8 @@ pub async fn get_audio_path(
         output_path_str.clone()
     ];
 
+    let _ = app.emit("ffmpeg-log", format!("> ffmpeg {}", args.join(" ")));
+
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")
@@ -138,26 +136,12 @@ pub async fn get_audio_path(
         .spawn()
         .map_err(|e| e.to_string())?;
 
-    let mut last_percent = 0;
-
     while let Some(event) = rx.recv().await {
-        if let CommandEvent::Stdout(line) = event {
+        if let CommandEvent::Stderr(line) = event {
             let out = String::from_utf8_lossy(&line);
-            if out.contains("out_time_ms=") && total_micros > 0 {
-                let ms_str = out.split('=').last().unwrap_or("0").trim();
-                if let Ok(current_micros) = ms_str.parse::<i64>() {
-                    let percent = (((current_micros as f64) / (total_micros as f64)) *
-                        100.0) as i32;
-                    if percent > last_percent && percent <= 100 {
-                        last_percent = percent;
-                        let _ = app.emit("ffmpeg-progress", percent);
-                    }
-                }
-            }
+            let _ = app.emit("ffmpeg-log", out.to_string());
         }
     }
-
-    app.emit("ffmpeg-progress", 100).ok();
 
     Ok(output_path_str)
 }
@@ -487,6 +471,8 @@ pub async fn save_media_props(
     let temp_path = format!("{}.tmp", target_path);
     let args = build_ffmpeg_args(&file_path, &changes, &info.muxer, &temp_path);
 
+    let _ = app.emit("ffmpeg-log", format!("> ffmpeg {}", args.join(" ")));
+
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")
@@ -495,24 +481,18 @@ pub async fn save_media_props(
         .spawn()
         .map_err(|e| format!("Failed to start FFmpeg process: {}", e))?;
 
-    let mut last_percent = -1;
     let mut success = false;
+    let mut error_log = String::new();
 
     while let Some(event) = rx.recv().await {
         match event {
             CommandEvent::Stderr(line) => {
                 let out = String::from_utf8_lossy(&line);
-                if let Some(start) = out.find("time=") {
-                    let ts = &out[start + 5..].split_whitespace().next().unwrap_or("");
-                    if let Ok(secs) = parse_ffmpeg_time(ts) {
-                        let percent = ((secs / info.duration) * 100.0) as i32;
-                        let percent = percent.clamp(0, 100);
-                        if percent > last_percent {
-                            last_percent = percent;
-                            let _ = app.emit("ffmpeg-progress", percent);
-                        }
-                    }
-                }
+                error_log.push_str(&out);
+                error_log.push('\n');
+
+                // Stream the live terminal output to the frontend modal
+                let _ = app.emit("ffmpeg-log", out.to_string());
             }
             CommandEvent::Terminated(p) => {
                 success = p.code == Some(0);
@@ -522,26 +502,32 @@ pub async fn save_media_props(
     }
 
     if success {
-        let _ = app.emit("ffmpeg-progress", 100);
         thread::sleep(Duration::from_millis(150));
-        if !save_as {
-            fs::remove_file(&file_path).map_err(|e| e.to_string())?;
+
+        if save_as {
+            fs
+                ::rename(&temp_path, &target_path)
+                .or_else(|_| {
+                    fs::copy(&temp_path, &target_path)?;
+                    fs::remove_file(&temp_path)
+                })
+                .map_err(|e| format!("Failed to save new file: {}", e))?;
+        } else {
+            fs
+                ::remove_file(&file_path)
+                .map_err(|e| format!("Failed to remove original file: {}", e))?;
+            fs
+                ::rename(&temp_path, &target_path)
+                .or_else(|_| {
+                    fs::copy(&temp_path, &target_path)?;
+                    fs::remove_file(&temp_path)
+                })
+                .map_err(|e| format!("Failed to overwrite original file: {}", e))?;
         }
-        fs::rename(&temp_path, &target_path).map_err(|e| e.to_string())?;
+
         Ok("File saved successfully".into())
     } else {
-        let _ = fs::remove_file(&temp_path);
-        Err("FFmpeg failed".into())
+        let _ = fs::remove_file(&file_path);
+        Err(format!("FFmpeg failed:\n{}", error_log))
     }
-}
-
-fn parse_ffmpeg_time(t: &str) -> Result<f64, String> {
-    let p: Vec<&str> = t.split(':').collect();
-    if p.len() != 3 {
-        return Err("Invalid format".into());
-    }
-    let h: f64 = p[0].parse().unwrap_or(0.0);
-    let m: f64 = p[1].parse().unwrap_or(0.0);
-    let s: f64 = p[2].parse().unwrap_or(0.0);
-    Ok(h * 3600.0 + m * 60.0 + s)
 }

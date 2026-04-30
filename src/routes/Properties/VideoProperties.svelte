@@ -12,7 +12,7 @@
     FIELD_ORDER,
   } from "../utils/maps.js";
 
-  let isVideoPropOpen = $state(true);
+  let isVideoPropOpen = $state(false);
   let videoStream = $derived(appState.data.getVideo());
 
   let width = $derived(videoStream.width);

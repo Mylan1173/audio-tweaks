@@ -10,9 +10,7 @@
   } from "../utils/state.svelte.js";
   import { open } from "@tauri-apps/plugin-dialog";
 
-  let selectedFile = $derived(appState.selectedMedia.mediaPath);
-
-  let isSubsPropOpen = $state(false);
+  let isSubsPropOpen = $state(true);
 
   let isEditing = $state(false);
   let editIndex = $state();
@@ -23,7 +21,7 @@
     const action = await openQuickMenu(e.currentTarget, [
       { label: "Edit", value: "edit", icon: "edit" },
       { label: "Delete", value: "delete", icon: "delete_forever" },
-      { label: "Export as SubRip", value: "export", icon: "export" },
+      { label: "Export", value: "export", icon: "export" },
     ]);
 
     if (!action) return;
@@ -31,16 +29,16 @@
     if (action === "delete") {
       const answer = await startModal(
         "Ask",
-        "Are you sure you want to delete the subtitle track?",
+        "Are you sure you want to delete this subtitle track?",
       );
       if (answer) {
         appState.data.setSubtitle("delete", idx);
       }
     } else if (action === "export") {
-      startModal("ProgressBar", "Saving Track...");
+      startModal("Console", "Saving Track...");
       try {
         await invoke("export_stream", {
-          inputPath: selectedFile.path,
+          inputPath: appState.selectedMedia.mediaPath,
           streamType: "subtitle",
           streamIndex: idx,
         });

@@ -1,6 +1,7 @@
 <script>
   import AskModal from "./ModalTypes/AskModal.svelte";
-  import ProgressBarModal from "./ModalTypes/ProgressBarModal.svelte";
+  import ConsoleModal from "./ModalTypes/ConsoleModal.svelte";
+
   let isShowing = $state(false);
   let title = $state("");
   let type = $state("");
@@ -36,11 +37,11 @@
   <div class="cont">
     <button class="bg" onclick={() => handleSelect(false)} aria-label="bg"
     ></button>
-    <div class="modal">
+    <div class="modal" class:console-size={type === "Console"}>
       {#if type === "Ask"}
         <AskModal {handleSelect} {title} {options} />
-      {:else if type === "ProgressBar"}
-        <ProgressBarModal {handleSelect} {title} />
+      {:else if type === "Console"}
+        <ConsoleModal {handleSelect} {title} />
       {/if}
     </div>
   </div>
@@ -60,6 +61,7 @@
     border: none;
     background: none;
   }
+
   .modal {
     position: fixed;
     top: 50%;
@@ -76,5 +78,14 @@
     z-index: 12;
     background-color: rgb(19, 28, 46);
     overflow: hidden;
+    transition:
+      width 0.2s ease,
+      height 0.2s ease;
+  }
+
+  .console-size {
+    width: 800px !important;
+    height: 500px !important;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
   }
 </style>

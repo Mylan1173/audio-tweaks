@@ -159,7 +159,7 @@ export class MediaData {
         break;
 
       case "delete":
-        this._audio[index].isDeleted = true;
+        this._audio[index].isDeleted = !this._audio[index].isDeleted;
         break;
 
       case "language":
@@ -191,7 +191,16 @@ export class MediaData {
     }
   }
 
-  addAudio(importPath) {
+  addAudio(importPath, rawAudioStream) {
+    let channelMap = {};
+    let channelVolumes = {};
+    let channels = rawAudioStream?.channels || 2;
+
+    for (let i = 0; i < channels; i++) {
+      channelMap[i] = i;
+      channelVolumes[i] = 0;
+    }
+
     this._audio.push({
       default: false,
       forced: false,
@@ -200,7 +209,16 @@ export class MediaData {
       isDeleted: false,
       isImported: true,
       path: importPath,
+      bitRate: rawAudioStream?.bit_rate || null,
+      bitDepth: rawAudioStream?.bits_per_sample || null,
+      channels: channels,
+      newChannels: channels,
+      codecName: rawAudioStream?.codec_name || "copy",
+      sampleRate: rawAudioStream?.sample_rate || null,
+      channelMap,
+      channelVolumes,
     });
+
     return this._audio.length - 1;
   }
 
