@@ -20,10 +20,11 @@ Built with **Tauri**, **Svelte 5**, and powered by **FFmpeg**, AudioTweaks allow
 ## Gallery
 
 <div align="center">
-  <img src="./assets/dashboard.png" alt="Main Dashboard" width="48%">
-  <img src="./assets/batch-editor.png" alt="Batch Profile Editor" width="48%">
+  <img src="./assets/dashboard.png" alt="Main Dashboard" width="80%">
   <br>
-  <img src="./assets/audio-tools.png" alt="Audio Visualizer and Remapper" width="48%">
+  <img src="./assets/batch-editor.png" alt="Batch Profile Editor" width="80%">
+  <br>
+  <img src="./assets/audio-tools.png" alt="Audio Visualizer and Remapper" width="80%">
 </div>
 
 ---
@@ -32,7 +33,7 @@ Built with **Tauri**, **Svelte 5**, and powered by **FFmpeg**, AudioTweaks allow
 
 AudioTweaks bridges a blazingly fast Rust backend with a reactive frontend:
 
-- **Frontend:** [Svelte 5](https://svelte.dev/) (using `$state` and `$derived` runes) + HTML/CSS
+- **Frontend:** [Svelte 5](https://svelte.dev/) + HTML/CSS
 - **Backend:** [Rust](https://www.rust-lang.org/) + [Tauri v2](https://v2.tauri.app/)
 - **Engine:** [FFmpeg](https://ffmpeg.org/) & [FFprobe](https://ffmpeg.org/ffprobe.html) for all media parsing and stream manipulation.
 
@@ -51,7 +52,7 @@ AudioTweaks bridges a blazingly fast Rust backend with a reactive frontend:
 1. Clone the repository:
 
 ```bash
-git clone [https://github.com/yourusername/audio-tweaks.git](https://github.com/yourusername/audio-tweaks.git)
+git clone [https://github.com/Mylan1173/audio-tweaks.git](https://github.com/Mylan1173/audio-tweaks.git)
 cd audio-tweaks
 ```
 
