@@ -1,12 +1,14 @@
 use serde::Serialize;
 use std::{ fs::{ self }, path::PathBuf };
-use tauri::AppHandle;
+use tauri::{ AppHandle, Emitter };
 use tauri_plugin_dialog::DialogExt;
+
 #[derive(Serialize)]
 pub enum DataType {
     File,
     Folder,
 }
+
 #[derive(Serialize)]
 pub struct Data {
     children: Option<Vec<Data>>,
@@ -24,11 +26,13 @@ fn validate_file(path: PathBuf) -> bool {
     }
 }
 
-fn get_folder_contents(path: PathBuf) -> Result<Data, String> {
+fn get_folder_contents(app: &AppHandle, path: PathBuf) -> Result<Data, String> {
     let r_dir: fs::ReadDir = match fs::read_dir(&path) {
         Ok(r) => r,
-        Err(_) => {
-            return Err(String::from("Failed to read dir!"));
+        Err(e) => {
+            let msg = format!("Failed to read directory: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            return Err(msg);
         }
     };
 
@@ -40,17 +44,17 @@ fn get_folder_contents(path: PathBuf) -> Result<Data, String> {
 
     for content in contents_pathbuf {
         if content.is_dir() {
-            let dir_contents = get_folder_contents(content.clone());
-
-            contents.push(Data {
-                data_type: DataType::Folder,
-                data_name: content
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.to_string_lossy().into_owned()),
-                children: dir_contents.unwrap().children,
-                data_path: content,
-            });
+            if let Ok(dir_contents) = get_folder_contents(app, content.clone()) {
+                contents.push(Data {
+                    data_type: DataType::Folder,
+                    data_name: content
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path.to_string_lossy().into_owned()),
+                    children: dir_contents.children,
+                    data_path: content,
+                });
+            }
         } else {
             if validate_file(content.clone()) {
                 contents.push(Data {
@@ -65,6 +69,7 @@ fn get_folder_contents(path: PathBuf) -> Result<Data, String> {
             }
         }
     }
+
     Ok(Data {
         data_type: DataType::Folder,
         data_name: path
@@ -92,15 +97,18 @@ pub fn select_media(
         } else {
             path = app.dialog().file().set_title("Select a folder").blocking_pick_folder();
         }
+
         path_buf = match path {
             Some(p) => p.as_path().unwrap().to_owned(),
             None => {
-                return Err(String::from("Failed to get FilePath!"));
+                return Err(String::from("Cancelled"));
             }
         };
     }
 
     if is_file {
+        let _ = app.emit("backend-success", "File loaded successfully");
+
         Ok(Data {
             data_type: DataType::File,
             data_name: path_buf
@@ -111,9 +119,12 @@ pub fn select_media(
             data_path: path_buf,
         })
     } else {
-        match get_folder_contents(path_buf) {
-            Ok(p) => Ok(p),
-            Err(e) => Err(e),
+        match get_folder_contents(&app, path_buf) {
+            Ok(p) => {
+                let _ = app.emit("backend-success", "Folder loaded successfully");
+                Ok(p)
+            }
+            Err(e) => { Err(e) }
         }
     }
 }

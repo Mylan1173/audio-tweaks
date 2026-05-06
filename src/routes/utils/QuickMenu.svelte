@@ -1,6 +1,4 @@
 <script>
-  // @ts-nocheck
-
   import { appState, closeQuickMenu } from "./state.svelte.js";
   import { fade } from "svelte/transition";
   import Svg from "./Svg.svelte";
@@ -15,14 +13,7 @@
   onclick={(e) => {
     if (!menu.isOpen) return;
 
-    const path = e.composedPath();
-
-    const isClickInside = path.some(
-      (element) =>
-        element.classList && element.classList.contains("menu-content"),
-    );
-
-    if (!isClickInside) {
+    if (e.target instanceof Element && !e.target.closest(".menu-content")) {
       closeQuickMenu();
     }
   }}
@@ -58,8 +49,8 @@
 
   .menu-content {
     position: fixed;
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 4px;
     min-width: 160px;
@@ -78,7 +69,7 @@
   .menu-item {
     background: transparent;
     border: none;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     padding: 8px 12px;
     text-align: left;
     display: flex;

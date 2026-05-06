@@ -81,8 +81,8 @@
 
   .header {
     height: 60px;
-    background-color: rgb(29, 41, 61);
-    border-bottom: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-light);
+    border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
     padding: 0 15px;
@@ -95,7 +95,7 @@
     transform: translateX(-50%);
     font-size: 14px;
     font-weight: 600;
-    color: rgb(144, 161, 185);
+    color: var(--text-dark);
   }
 
   .terminal-body {
@@ -117,7 +117,7 @@
     background: transparent;
   }
   .terminal-body::-webkit-scrollbar-thumb {
-    background: rgb(69, 85, 108);
+    background: var(--border);
     border-radius: 4px;
   }
 

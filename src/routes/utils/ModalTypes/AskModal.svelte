@@ -19,8 +19,8 @@
     padding: 20px;
     width: 100%;
     height: fit-content;
-    border-bottom: 1px solid rgb(69, 85, 108);
-    background-color: rgb(29, 41, 61);
+    border-bottom: 1px solid var(--border);
+    background-color: var(--bg-light);
     display: grid;
     place-items: center;
 
@@ -42,8 +42,8 @@
 
     button {
       cursor: pointer;
-      border: 1px solid rgb(69, 85, 108);
-      background-color: rgb(29, 41, 61);
+      border: 1px solid var(--border);
+      background-color: var(--bg-light);
       font-size: 18px;
       font-weight: 600;
       padding: 10px 20px;
@@ -54,7 +54,7 @@
       height: 50px;
 
       &:hover {
-        border-color: rgb(186, 197, 211);
+        border-color: var(--text-light);
         transform: scale(110%);
       }
       &:active {

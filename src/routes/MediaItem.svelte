@@ -26,7 +26,7 @@
           style="padding-left: {5 * level}px;"
         >
           <div class="svg" class:open={isOpened[index]}>
-            <Svg name="chevron_left" size={20} />
+            <Svg name="chevron" size={20} />
           </div>
         </button>
         <button
@@ -53,7 +53,7 @@
         style="padding-left: {5 * level + 25}px;"
         onclick={() => setSelectedMedia(item.data_path, item.data_name, "file")}
       >
-        <div class="svg"><Svg name="video" size={20} /></div>
+        <div class="svg"><Svg name="file" size={20} /></div>
         <span>{item.data_name}</span>
       </button>
     {/if}
@@ -105,7 +105,7 @@
     }
 
     &:hover {
-      background-color: rgb(19, 28, 46);
+      background-color: var(--bg-dark);
     }
 
     .folder-name {
@@ -117,6 +117,6 @@
   }
 
   .selected {
-    background-color: rgb(19, 28, 46);
+    background-color: var(--bg-dark);
   }
 </style>

@@ -1,6 +1,4 @@
 <script>
-  // @ts-nocheck
-
   import { invoke, convertFileSrc } from "@tauri-apps/api/core";
   import { emit } from "@tauri-apps/api/event";
   import { appState, closeModal, startModal } from "./state.svelte.js";
@@ -12,14 +10,21 @@
 
   let lastActiveSteamIdx = $state(null);
 
-  let audioCtx = $state();
-  let audioBuffer = $state();
-  let waveformCache = $state([]);
+  let audioCtx = null;
+  let mediaSourceNode = null;
+  let splitterNode = null;
+
+  let isLoaded = $state(false);
+  let audioDuration = $state(0);
+  let assetUrl = $state("");
+
+  let waveformCache = $state.raw([]);
   let NOC = $state(0);
 
   let containerElement = $state();
   let rulerCanvas = $state();
   let canvases = $state([]);
+  let audioElement = $state();
 
   let scrollLeft = $state(0);
   let viewWidth = $state(0);
@@ -27,11 +32,6 @@
   let isPlaying = $state(false);
   let currentTime = $state(0);
   let selectedChannel = $state("all");
-
-  let sourceNode = null;
-  let startTime = 0;
-  let pauseTime = 0;
-  let animationFrame = null;
 
   const ZOOM = 10;
 
@@ -43,7 +43,6 @@
 
   const getChannelNames = (total) => {
     const defaultOpt = { code: "all", name: "All Channels" };
-
     if (!CHANNEL_LAYOUTS[total]) {
       return [
         defaultOpt,
@@ -53,7 +52,6 @@
         })),
       ];
     }
-
     return [
       defaultOpt,
       ...CHANNEL_LAYOUTS[total].map((ch) => ({
@@ -71,12 +69,13 @@
     if (activeStreamIdx !== lastActiveSteamIdx) {
       stopAudio();
 
-      audioBuffer = null;
+      isLoaded = false;
+      assetUrl = "";
+      audioDuration = 0;
       waveformCache = [];
       canvases = [];
       NOC = 0;
       currentTime = 0;
-      pauseTime = 0;
       selectedChannel = "all";
 
       if (rulerCanvas) {
@@ -97,36 +96,43 @@
     }
   });
 
+  $effect(() => {
+    selectedChannel;
+    updateAudioRouting();
+  });
+
   async function loadAudio() {
     startModal("Console", "Extracting Audio...");
     try {
-      if (!audioCtx) audioCtx = new window.AudioContext();
-
       const tempPath = await invoke("get_audio_path", {
         inputPath: appState.selectedMedia.mediaPath,
         streamIndex: activeStreamIdx,
       });
+
+      assetUrl = convertFileSrc(tempPath);
 
       await emit("app-progress", {
         progress: 0,
         title: "Reading File into Memory...",
       });
 
-      const assetUrl = convertFileSrc(tempPath);
       const response = await fetch(assetUrl);
       const arrayBuffer = await response.arrayBuffer();
 
       await emit("app-progress", {
         progress: 20,
-        title: "Decoding Audio Data...",
+        title: "Decoding Audio Data (Optimized)...",
       });
 
-      audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
-      NOC = audioBuffer.numberOfChannels;
+      const offlineCtx = new window.AudioContext({ sampleRate: 8000 });
+      const decodedBuffer = await offlineCtx.decodeAudioData(arrayBuffer);
+
+      NOC = decodedBuffer.numberOfChannels;
+      audioDuration = decodedBuffer.duration;
 
       const cache = [];
-      const totalWidth = Math.ceil(audioBuffer.duration * ZOOM);
-      const sampleRate = audioBuffer.sampleRate;
+      const totalWidth = Math.ceil(audioDuration * ZOOM);
+      const sampleRate = decodedBuffer.sampleRate;
       const samplesPerPixel = sampleRate / ZOOM;
 
       for (let ch = 0; ch < NOC; ch++) {
@@ -137,7 +143,7 @@
 
         await new Promise((resolve) => setTimeout(resolve, 5));
 
-        const data = audioBuffer.getChannelData(ch);
+        const data = decodedBuffer.getChannelData(ch);
         const peaks = new Float32Array(totalWidth * 2);
 
         for (let x = 0; x < totalWidth; x++) {
@@ -156,8 +162,18 @@
         }
         cache.push(peaks);
       }
+
       waveformCache = cache;
       canvases = new Array(NOC).fill(null);
+      isLoaded = true;
+
+      offlineCtx.close();
+
+      if (!audioCtx) {
+        audioCtx = new window.AudioContext();
+        mediaSourceNode = audioCtx.createMediaElementSource(audioElement);
+        updateAudioRouting();
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -165,8 +181,23 @@
     }
   }
 
+  function updateAudioRouting() {
+    if (!mediaSourceNode || !audioCtx) return;
+
+    mediaSourceNode.disconnect();
+    if (splitterNode) splitterNode.disconnect();
+
+    if (selectedChannel === "all") {
+      mediaSourceNode.connect(audioCtx.destination);
+    } else {
+      splitterNode = audioCtx.createChannelSplitter(NOC);
+      mediaSourceNode.connect(splitterNode);
+      splitterNode.connect(audioCtx.destination, parseInt(selectedChannel), 0);
+    }
+  }
+
   $effect(() => {
-    if (!rulerCanvas || !viewWidth || !audioBuffer) return;
+    if (!rulerCanvas || !viewWidth || !isLoaded) return;
     const ctx = rulerCanvas.getContext("2d", { alpha: false });
     const dpr = window.devicePixelRatio || 1;
     rulerCanvas.width = viewWidth * dpr;
@@ -232,90 +263,63 @@
     });
   });
 
-  function updateTime() {
-    if (isPlaying && audioCtx) {
-      currentTime = audioCtx.currentTime - startTime;
-      if (currentTime >= audioBuffer.duration) {
-        stopAudio();
-        currentTime = audioBuffer.duration;
-      } else {
-        animationFrame = requestAnimationFrame(updateTime);
-      }
-    }
-  }
-
-  function handleChannelChange() {
-    if (isPlaying) {
-      stopAudio();
-      togglePlay();
-    }
-  }
-
   function togglePlay() {
-    if (!audioBuffer) return;
+    if (!isLoaded) return;
 
     if (audioCtx.state === "suspended") {
       audioCtx.resume();
     }
 
     if (isPlaying) {
-      stopAudio();
-      pauseTime = currentTime;
+      audioElement.pause();
+      isPlaying = false;
     } else {
-      sourceNode = audioCtx.createBufferSource();
-      sourceNode.buffer = audioBuffer;
-
-      if (selectedChannel === "all") {
-        sourceNode.connect(audioCtx.destination);
-      } else {
-        const splitter = audioCtx.createChannelSplitter(NOC);
-        sourceNode.connect(splitter);
-        splitter.connect(audioCtx.destination, parseInt(selectedChannel), 0);
-      }
-
-      startTime = audioCtx.currentTime - pauseTime;
-      sourceNode.start(0, pauseTime);
+      audioElement.play();
       isPlaying = true;
-      animationFrame = requestAnimationFrame(updateTime);
     }
   }
 
   function stopAudio() {
-    if (sourceNode) {
-      sourceNode.stop();
-      sourceNode.disconnect();
-      sourceNode = null;
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
     }
     isPlaying = false;
-    cancelAnimationFrame(animationFrame);
+    currentTime = 0;
   }
 
   function handleSeek(e) {
-    if (!audioBuffer) return;
+    if (!isLoaded) return;
     const rect = containerElement.getBoundingClientRect();
     const clickX = e.clientX - rect.left + scrollLeft - 50;
     let newTime = clickX / ZOOM;
 
     if (newTime < 0) newTime = 0;
-    if (newTime > audioBuffer.duration) newTime = audioBuffer.duration;
-
-    const wasPlaying = isPlaying;
-    if (isPlaying) stopAudio();
+    if (newTime > audioDuration) newTime = audioDuration;
 
     currentTime = newTime;
-    pauseTime = newTime;
-
-    if (wasPlaying) togglePlay();
+    if (audioElement) audioElement.currentTime = newTime;
   }
 </script>
 
 <div class="visualizer-wrapper">
+  <audio
+    bind:this={audioElement}
+    src={assetUrl}
+    crossorigin="anonymous"
+    ontimeupdate={() => (currentTime = audioElement.currentTime)}
+    onended={() => {
+      isPlaying = false;
+      stopAudio();
+    }}
+  ></audio>
+
   <div class="toolbar">
-    {#if !audioBuffer}
-      <button onclick={loadAudio} class="load-button"
-        ><Svg name="waveform" color="rgb(186, 197, 211)" />
-        <span> Load Audio Visualizer</span></button
-      >
+    {#if !isLoaded}
+      <button onclick={loadAudio} class="load-button">
+        <Svg name="waveform" color="rgb(186, 197, 211)" />
+        <span> Load Audio Visualizer</span>
+      </button>
     {:else}
       <button onclick={togglePlay} class="play-pause">
         {#if isPlaying}
@@ -351,16 +355,16 @@
   <div
     class="scroll-container"
     bind:this={containerElement}
-    onscroll={(e) => (scrollLeft = e.target.scrollLeft)}
+    onscroll={(e) => (scrollLeft = e.currentTarget.scrollLeft)}
     onclick={handleSeek}
     role="button"
     tabindex="0"
     onkeydown={(e) => e.key === "Enter" && handleSeek(e)}
   >
-    {#if audioBuffer}
+    {#if isLoaded}
       <div
         class="total-content-spacer"
-        style:width="{audioBuffer.duration * ZOOM + 50}px"
+        style:width="{audioDuration * ZOOM + 50}px"
       >
         <div class="ruler-row">
           <div class="sticky-label">Time</div>
@@ -406,7 +410,7 @@
     gap: 20px;
     align-items: center;
     padding: 10px 0;
-    color: rgb(144, 161, 185);
+    color: var(--text-dark);
   }
 
   .time-display {
@@ -420,7 +424,7 @@
     max-width: 100vw;
     overflow-x: auto;
     display: block;
-    background: rgb(19, 28, 46);
+    background: var(--bg-dark);
     position: relative;
     cursor: text;
     border-radius: 10px;
@@ -431,12 +435,12 @@
     height: 12px;
   }
   .scroll-container::-webkit-scrollbar-track {
-    background: rgb(19, 28, 46);
+    background: var(--bg-dark);
   }
   .scroll-container::-webkit-scrollbar-thumb {
-    background: rgb(69, 85, 108);
+    background: var(--border);
     border-radius: 6px;
-    border: 3px solid rgb(19, 28, 46);
+    border: 3px solid var(--bg-dark);
   }
 
   .total-content-spacer {
@@ -451,7 +455,7 @@
     position: sticky;
     top: 0;
     height: 30px;
-    background: rgb(19, 28, 46);
+    background: var(--bg-dark);
     width: 100%;
     z-index: 10;
     display: flex;
@@ -460,7 +464,7 @@
   .channel-track-row {
     position: relative;
     height: 80px;
-    background: rgb(29, 41, 61);
+    background: var(--bg-light);
     width: 100%;
     display: flex;
   }
@@ -470,14 +474,14 @@
     left: 0;
     width: 50px;
     min-width: 50px;
-    background: rgb(19, 28, 46);
+    background: var(--bg-dark);
     z-index: 30;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-right: 1px solid rgb(69, 85, 108);
+    border-right: 1px solid var(--border);
     font-size: 11px;
-    color: rgb(144, 161, 185);
+    color: var(--text-dark);
     font-weight: bold;
   }
 
@@ -510,7 +514,7 @@
     justify-content: center;
     padding: 10px;
     border-radius: 10px;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     background-color: transparent;
     cursor: pointer;
     gap: 10px;
@@ -519,11 +523,11 @@
     span {
       font-size: 16px;
       font-weight: 600;
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
     }
     &:hover {
-      border-color: rgb(186, 197, 211);
-      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+      border-color: var(--text-light);
+      box-shadow: var(--text-light) 0px 0px 2px;
     }
     &:active {
       transform: scale(97%);
@@ -537,13 +541,13 @@
     display: grid;
     place-items: center;
     border-radius: 10px;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     transition: 100ms all ease-in-out;
     cursor: pointer;
 
     &:hover {
-      border-color: rgb(186, 197, 211);
-      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+      border-color: var(--text-light);
+      box-shadow: var(--text-light) 0px 0px 2px;
     }
     &:active {
       transform: scale(97%);
@@ -551,21 +555,21 @@
   }
 
   .channel-selector {
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 0 20px;
     width: 200px;
     height: 40px;
     font-size: 16px;
     font-weight: 500;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     display: grid;
     place-items: center;
     transition: 100ms all ease-in-out;
 
     &:hover {
-      border-color: rgb(186, 197, 211);
-      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+      border-color: var(--text-light);
+      box-shadow: var(--text-light) 0px 0px 2px;
     }
   }
 </style>

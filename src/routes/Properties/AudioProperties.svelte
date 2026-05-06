@@ -95,7 +95,7 @@
     class="properties-container-title"
     onclick={() => (isAudioPropOpen = !isAudioPropOpen)}
     ><div class="chevron" class:open-chevron={isAudioPropOpen}>
-      <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
+      <Svg name="chevron" size={30} color="rgb(186, 197, 211)" />
     </div>
     <span>Audio Properties</span></button
   >
@@ -122,7 +122,7 @@
           ></button
         >
         <button class="selector-button" onclick={handleExport}
-          ><Svg name="export" color="rgb(186, 197, 211)" /><span
+          ><Svg name="audio" color="rgb(186, 197, 211)" /><span
             >Export Audio Track</span
           ></button
         >
@@ -213,7 +213,7 @@
                 />
               </div>
             </div>
-            {#if ["flac", "alac", "pcm_s16le", "pcm_s24le", "truehd", "mlp"].includes(activeStream.bitDepth)}
+            {#if ["flac", "alac", "pcm_s16le", "pcm_s24le", "truehd", "mlp"].includes(activeStream.codecName)}
               <div class="setting-container">
                 <div class="setting-name">Bit Depth</div>
                 <div class="setting-value">
@@ -244,8 +244,8 @@
 <style>
   .properties-container {
     width: calc(100% - 40px);
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
     border-radius: 10px;
     margin: 10px 20px;
     padding: 10px;
@@ -279,7 +279,7 @@
     }
 
     span {
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
       font-size: 15px;
       font-weight: 600;
     }
@@ -301,7 +301,7 @@
     row-gap: 10px;
 
     p {
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
       font-size: 15px;
       font-weight: 600;
       margin-right: 15px;
@@ -310,7 +310,7 @@
     .stream-dropdown {
       width: 400px;
       height: 40px;
-      border: 1px solid rgb(69, 85, 108);
+      border: 1px solid var(--border);
       padding: 0px 20px;
       display: grid;
       place-items: center;
@@ -326,7 +326,7 @@
     justify-content: center;
     padding: 10px 10px;
     border-radius: 10px;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     background-color: transparent;
     cursor: pointer;
     gap: 10px;
@@ -335,11 +335,11 @@
     span {
       font-size: 16px;
       font-weight: 600;
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
     }
     &:hover {
-      border-color: rgb(186, 197, 211);
-      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+      border-color: var(--text-light);
+      box-shadow: var(--text-light) 0px 0px 2px;
     }
     &:active {
       transform: scale(97%);
@@ -356,7 +356,7 @@
       height: 50px;
       width: 600px;
       border-radius: 10px;
-      border: 1px solid rgb(69, 85, 108);
+      border: 1px solid var(--border);
       display: flex;
       flex-direction: row;
 
@@ -369,9 +369,9 @@
         font-weight: 600;
         min-width: 200px;
         width: fit-content;
-        background-color: rgb(19, 28, 46);
-        color: rgb(186, 197, 211);
-        border-right: 1px solid rgb(69, 85, 108);
+        background-color: var(--bg-dark);
+        color: var(--text-light);
+        border-right: 1px solid var(--border);
       }
 
       .setting-value {
@@ -409,8 +409,8 @@
   .toggle-btn {
     width: 100%;
     height: 100%;
-    background-color: rgb(29, 41, 61);
-    color: rgb(186, 197, 211);
+    background-color: var(--bg-light);
+    color: var(--text-light);
     font-weight: 600;
     font-size: 15px;
     cursor: pointer;
@@ -428,7 +428,7 @@
 
   hr {
     height: 2px;
-    background-color: rgb(69, 85, 108);
+    background-color: var(--border);
     border: none;
     margin: 10px 10px;
   }

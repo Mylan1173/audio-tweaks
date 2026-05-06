@@ -11,7 +11,7 @@
   import VideoProperties from "./Properties/VideoProperties.svelte";
   import AudioProperties from "./Properties/AudioProperties.svelte";
   import SubtitleProperties from "./Properties/SubtitleProperties.svelte";
-  import PropertiesComparer from "./utils/PropertiesComparer.svelte";
+  import PropertiesComparer from "./Properties/PropertiesComparer.svelte";
   import Svg from "./utils/Svg.svelte";
 
   let selectedMedia = $derived(appState.selectedMedia);
@@ -30,6 +30,7 @@
       loadMediaProperties(selectedMedia.mediaPath)
         .then((res) => {
           appState.data.init(res);
+          appState.data.fileName = selectedMedia.mediaName;
         })
         .finally(() => {
           loading = false;
@@ -102,9 +103,9 @@
     <div class="header">
       <div class="media-type">
         {#if selectedMedia.mediaType === "folder"}
-          <Svg name="folder" color="rgb(186, 197, 211)" />
+          <Svg name="folder_edit" color="rgb(186, 197, 211)" />
         {:else}
-          <Svg name="file" color="rgb(186, 197, 211)" />
+          <Svg name="file_edit" color="rgb(186, 197, 211)" />
         {/if}
       </div>
       <div class="media-details">
@@ -118,11 +119,21 @@
             <span>Apply Profile</span>
           </button>
         {:else}
-          <button class="save" onclick={() => handleSave(false)}>
+          <button
+            class="save"
+            class:hidden={!appState.data.isPendingChanges ||
+              appState.data.hasError()}
+            onclick={() => handleSave(false)}
+          >
             <Svg name="save" color="rgb(186, 197, 211)" />
             <span>Save</span>
           </button>
-          <button class="save" onclick={() => handleSave(true)}>
+          <button
+            class="save"
+            class:hidden={!appState.data.isPendingChanges ||
+              appState.data.hasError()}
+            onclick={() => handleSave(true)}
+          >
             <Svg name="save_as" color="rgb(186, 197, 211)" />
             <span>Save As</span>
           </button>
@@ -130,13 +141,21 @@
       </div>
     </div>
     {#if !loading}
-      {#if appState.selectedMedia.mediaType === "file" && appState.data.initialized}
-        <VideoProperties />
-        <AudioProperties />
-        <SubtitleProperties />
-      {:else if appState.selectedMedia.mediaType === "folder" && appState.contentData.initialized}
-        <PropertiesComparer />
-      {/if}
+      <div class="scroll-container">
+        {#if appState.selectedMedia.mediaType === "file" && appState.data.initialized}
+          {#if appState.data.isVideo}
+            <VideoProperties />
+          {/if}
+          {#if appState.data.isAudio}
+            <AudioProperties />
+          {/if}
+          {#if appState.data.isSubtitle}
+            <SubtitleProperties />
+          {/if}
+        {:else if appState.selectedMedia.mediaType === "folder" && appState.contentData.initialized}
+          <PropertiesComparer />
+        {/if}
+      </div>
     {:else}
       <div class="loader"></div>
     {/if}
@@ -167,9 +186,9 @@
   }
 
   .no_file {
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
-    color: rgb(186, 197, 211);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    color: var(--text-light);
     border-radius: 10px;
     padding: 10px 20px;
     font-size: 16px;
@@ -177,12 +196,17 @@
     text-align: center;
   }
 
+  .scroll-container {
+    overflow: scroll;
+    scrollbar-width: none;
+  }
+
   .header {
     min-height: 58px;
     height: auto;
     width: calc(100% - 20px);
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
     border-radius: 10px;
     margin: 0 10px 10px 10px;
 
@@ -217,7 +241,7 @@
       justify-self: flex-start;
       display: grid;
       place-items: center;
-      border-right: 1px solid rgb(69, 85, 108);
+      border-right: 1px solid var(--border);
     }
 
     .button-container {
@@ -233,9 +257,9 @@
 
   button {
     background-color: transparent;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     padding: 5px 10px;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     border-radius: 7px;
     display: flex;
     flex-direction: row;
@@ -253,11 +277,15 @@
 
     &:hover {
       cursor: pointer;
-      border-color: rgb(186, 197, 211);
+      border-color: var(--text-light);
     }
     &:active {
       transform: scale(97%);
     }
+  }
+
+  .hidden {
+    visibility: hidden;
   }
 
   .loader {

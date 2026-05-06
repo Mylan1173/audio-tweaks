@@ -1,9 +1,12 @@
 <script>
+  import { listen } from "@tauri-apps/api/event";
   import { appState } from "./utils/state.svelte.js";
+  import { toastState } from "./utils/state.svelte.js";
   import FileExplorer from "./FileExplorer.svelte";
   import MediaProperties from "./MediaProperties.svelte";
   import ModalWrapper from "./utils/ModalWrapper.svelte";
   import QuickMenu from "./utils/QuickMenu.svelte";
+  import ToastMessage from "./utils/ModalTypes/ToastMessage.svelte";
 
   let isResizing = $state(false);
 
@@ -35,6 +38,13 @@
   $effect(() => {
     appState.modal = modalRef;
   });
+
+  listen("backend-error", (event) => {
+    toastState.add(event.payload, "error", 6000);
+  });
+  listen("backend-success", (event) => {
+    toastState.add(event.payload, "success", 4000);
+  });
 </script>
 
 <main
@@ -47,6 +57,7 @@
   <MediaProperties />
   <QuickMenu />
   <ModalWrapper bind:this={modalRef} />
+  <ToastMessage />
 </main>
 
 <style>
@@ -64,7 +75,15 @@ TEXT COLOR: 144, 161, 185
     font-size: 12px;
     font-weight: 400;
     box-sizing: border-box;
-    /* user-select: none; */
+    user-select: none;
+  }
+
+  :global(:root) {
+    --bg-dark: rgb(19, 28, 46);
+    --bg-light: rgb(29, 41, 61);
+    --border: rgb(69, 85, 108);
+    --text-light: rgb(186, 197, 211);
+    --text-dark: rgb(144, 161, 185);
   }
 
   :root {
@@ -74,7 +93,7 @@ TEXT COLOR: 144, 161, 185
     overflow: hidden;
 
     color: rgb(255, 255, 255);
-    background-color: rgb(19, 28, 46);
+    background-color: var(--bg-dark);
 
     font-synthesis: none;
     text-rendering: optimizeLegibility;

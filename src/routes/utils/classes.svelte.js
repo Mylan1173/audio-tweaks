@@ -1,29 +1,69 @@
-// @ts-nocheck
-import { LANGUAGES, AUDIO_CODECS } from "./maps.js";
+import { LANGUAGES, AUDIO_CODECS, ERROR_TYPES } from "./maps.js";
+import isEqual from "lodash.isequal";
 
+/** @typedef {import('../../types').VideoStream} VideoStream */
+/** @typedef {import('../../types').AudioStream} AudioStream */
+/** @typedef {import('../../types').SubtitleStream} SubtitleStream */
+/** @typedef {import('../../types').FFprobeAudioStream} FFprobeAudioStream */
+/** @typedef {import('../../types').MediaDataClass} MediaDataClass */
+
+/** @type {MediaDataClass} */
 export class MediaData {
   initialized = $state(false);
-  path = $state();
-  name = $state();
+  fileName = $state();
+  filePath = $state();
 
-  _oldVideo = $state({});
+  errors = $state([]);
+
+  /** @type {VideoStream | null} */
+  _oldVideo = $state(/** @type {VideoStream} */ ({}));
+  /** @type {VideoStream | null} */
+  _video = $state(/** @type {VideoStream} */ ({}));
+
+  /** @type {AudioStream[]} */
   _oldAudio = $state([]);
-  _oldSubtitle = $state([]);
-
-  _video = $state({});
+  /** @type {AudioStream[]} */
   _audio = $state([]);
+
+  /** @type {SubtitleStream[]} */
+  _oldSubtitle = $state([]);
+  /** @type {SubtitleStream[]} */
   _subtitle = $state([]);
+
+  addError(errType) {
+    if (this.errors.filter((x) => x.errorType.includes(errType)).length === 0)
+      this.errors.push({ errorType: errType });
+  }
+  removeError(errType) {
+    this.errors = this.errors.filter((x) => x.errorType !== errType);
+  }
+  hasError(errType = null) {
+    if (errType === null) return this.errors.length > 0;
+    return this.errors.filter((x) => x.errorType.includes(errType)).length > 0;
+  }
+  getErrorMessages(errType) {
+    const errors = this.errors.filter((x) => x.errorType.includes(errType));
+    return errors.map((x) => ERROR_TYPES[x.errorType]);
+  }
 
   init(rawData) {
     if (this.initialized) return;
-
     this.initialized = true;
+
+    let ext = "mkv";
+    if (this.fileName) {
+      const parts = this.fileName.split(".");
+      ext = parts[parts.length - 1].toLowerCase();
+    }
+    const validFormats = ["mkv", "mp4", "avi", "mov", "webm"];
+    const detectedFormat = validFormats.includes(ext) ? ext : "mkv";
 
     //Video Changes
     const rawVideo =
       rawData.streams.find((s) => s.codec_type === "video") || {};
 
-    let video = {};
+    /** @type {VideoStream | null} */
+    let video = /** @type {VideoStream} */ ({});
     if (rawVideo.codec_type) {
       video = {
         width: rawVideo.width,
@@ -32,8 +72,8 @@ export class MediaData {
         aspectRatio: rawVideo.display_aspect_ratio,
         pixelFormat: rawVideo.pix_fmt,
         fieldOrder: rawVideo.field_order,
-        profile: rawVideo.profile,
-        avgFrameRate: rawVideo.avg_frame_rate,
+        profile: rawVideo.profile || "",
+        format: detectedFormat,
       };
     }
 
@@ -42,11 +82,15 @@ export class MediaData {
 
     //Audio Changes
     const rawAudio = rawData.streams.filter((s) => s.codec_type === "audio");
+    /** @type {AudioStream[]} */
     let audioArray = [];
 
     for (const audio of rawAudio) {
+      /** @type {Record<string | number, string | number | null>} */
       let channelMap = {};
+      /** @type {Record<string | number, string | number | null>} */
       let channelVolumes = {};
+
       for (let i = 0; i < audio.channels; i++) {
         channelMap[i] = i;
         channelVolumes[i] = 0;
@@ -78,6 +122,7 @@ export class MediaData {
     const rawSubtitle = rawData.streams.filter(
       (s) => s.codec_type === "subtitle",
     );
+    /** @type {SubtitleStream[]} */
     let subtitleArray = [];
 
     for (const sub of rawSubtitle) {
@@ -98,16 +143,20 @@ export class MediaData {
 
   reset() {
     this.initialized = false;
-    this._oldVideo = {};
+    this.errors = [];
+
+    this._oldVideo = /** @type {VideoStream} */ ({});
     this._oldAudio = [];
     this._oldSubtitle = [];
 
-    this._video = {};
+    this._video = /** @type {VideoStream} */ ({});
     this._audio = [];
     this._subtitle = [];
   }
 
   setVideo(prop, value = null) {
+    if (!this._video) return;
+
     switch (prop) {
       case "width":
         this._video.width = value;
@@ -135,6 +184,10 @@ export class MediaData {
 
       case "fieldOrder":
         this._video.fieldOrder = value;
+        break;
+
+      case "format":
+        this._video.format = value;
         break;
     }
   }
@@ -191,9 +244,19 @@ export class MediaData {
     }
   }
 
+  /**
+   * Adds a new audio track to the state
+   * @param {string} importPath
+   * @param {FFprobeAudioStream} [rawAudioStream]
+   * @returns {number} The index of the new track
+   */
+
   addAudio(importPath, rawAudioStream) {
+    /** @type {Record<string | number, string | number | null>} */
     let channelMap = {};
+    /** @type {Record<string | number, string | number | null>} */
     let channelVolumes = {};
+
     let channels = rawAudioStream?.channels || 2;
 
     for (let i = 0; i < channels; i++) {
@@ -291,28 +354,24 @@ export class MediaData {
   get isPendingChanges() {
     if (!this.initialized) return false;
 
-    const vDiff =
-      JSON.stringify(this._oldVideo) !== JSON.stringify(this._video);
-    const aDiff =
-      JSON.stringify(this._oldAudio) !== JSON.stringify(this._audio);
-    const sDiff =
-      JSON.stringify(this._oldSubtitle) !== JSON.stringify(this._subtitle);
+    const vDiff = !isEqual(this._oldVideo, this._video);
+    const aDiff = !isEqual(this._oldAudio, this._audio);
+    const sDiff = !isEqual(this._oldSubtitle, this._subtitle);
 
     if (vDiff || aDiff || sDiff) return true;
     else return false;
   }
 
   getPendingChanges() {
-    const vDiff =
-      JSON.stringify(this._oldVideo) !== JSON.stringify(this._video);
-    const aDiff =
-      JSON.stringify(this._oldAudio) !== JSON.stringify(this._audio);
-    const sDiff =
-      JSON.stringify(this._oldSubtitle) !== JSON.stringify(this._subtitle);
+    const vDiff = !isEqual(this._oldVideo, this._video);
+    const aDiff = !isEqual(this._oldAudio, this._audio);
+    const sDiff = !isEqual(this._oldSubtitle, this._subtitle);
 
     const getValidEncoder = (codec, type) => {
       if (!codec) return null;
       const lower = codec.toLowerCase();
+      if (lower === "copy") return "copy";
+
       if (type === "video") {
         if (lower === "h264") return "libx264";
         if (lower === "hevc") return "libx265";
@@ -332,22 +391,10 @@ export class MediaData {
     if (vDiff && Object.keys(this._video).length > 0) {
       videoPayload = { ...this._video };
 
-      const oldW =
-        this._oldVideo.width && this._oldVideo.width !== ""
-          ? Number(this._oldVideo.width)
-          : null;
-      const newW =
-        this._video.width && this._video.width !== ""
-          ? Number(this._video.width)
-          : null;
-      const oldH =
-        this._oldVideo.height && this._oldVideo.height !== ""
-          ? Number(this._oldVideo.height)
-          : null;
-      const newH =
-        this._video.height && this._video.height !== ""
-          ? Number(this._video.height)
-          : null;
+      const oldW = this._oldVideo.width ? Number(this._oldVideo.width) : null;
+      const newW = this._video.width ? Number(this._video.width) : null;
+      const oldH = this._oldVideo.height ? Number(this._oldVideo.height) : null;
+      const newH = this._video.height ? Number(this._video.height) : null;
 
       const needsReencode =
         this._oldVideo.codecName !== this._video.codecName ||
@@ -356,7 +403,8 @@ export class MediaData {
         this._oldVideo.aspectRatio !== this._video.aspectRatio ||
         this._oldVideo.pixelFormat !== this._video.pixelFormat ||
         this._oldVideo.fieldOrder !== this._video.fieldOrder ||
-        this._oldVideo.profile !== this._video.profile;
+        this._oldVideo.profile !== this._video.profile ||
+        this._oldVideo.format !== this._video.format;
 
       if (!needsReencode) {
         videoPayload.codecName = "copy";
@@ -379,7 +427,7 @@ export class MediaData {
     let audioPayload = null;
     if (aDiff && this._audio.length > 0) {
       audioPayload = this._audio.map((aud, i) => {
-        const oldAud = this._oldAudio[i] || {};
+        const oldAud = this._oldAudio[i];
 
         const needsReencode =
           aud.codecName !== oldAud.codecName ||
@@ -401,18 +449,11 @@ export class MediaData {
           payload.channelVolumes = null;
         } else {
           payload.codecName = getValidEncoder(aud.codecName, "audio");
-          payload.newChannels =
-            payload.newChannels && payload.newChannels !== ""
-              ? Number(payload.newChannels)
-              : null;
-          payload.bitRate =
-            payload.bitRate && payload.bitRate !== ""
-              ? String(payload.bitRate)
-              : null;
-          payload.sampleRate =
-            payload.sampleRate && payload.sampleRate !== ""
-              ? String(payload.sampleRate)
-              : null;
+          payload.newChannels = payload.newChannels
+            ? Number(payload.newChannels)
+            : null;
+          payload.bitRate = payload.bitRate ? payload.bitRate : null;
+          payload.sampleRate = payload.sampleRate ? payload.sampleRate : null;
         }
         return payload;
       });
@@ -462,7 +503,7 @@ export class MediaDataComparer {
 
   addMediaData(data) {
     const tempMediaData = new MediaData();
-    tempMediaData.path = data.path;
+    tempMediaData.filePath = data.path;
     tempMediaData.init(data);
     this.mediaDataFiles.push(tempMediaData);
   }

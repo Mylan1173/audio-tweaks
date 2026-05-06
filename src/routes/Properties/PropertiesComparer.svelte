@@ -1,5 +1,4 @@
 <script>
-  // @ts-nocheck
   import { invoke } from "@tauri-apps/api/core";
   import { appState } from "../utils/state.svelte.js";
   import Dropdown from "../utils/Dropdown.svelte";
@@ -16,7 +15,7 @@
   } from "../utils/maps.js";
 
   let comparer = $derived(appState.contentData);
-  let isPropOpen = $state({ video: true, audio: true, subtitle: true });
+  let isPropOpen = $state({ video: false, audio: false, subtitle: false });
 
   const formatChoices = (data) => {
     if (!data) return [];
@@ -240,7 +239,7 @@
         onclick={() => toggleSection(category)}
       >
         <div class="chevron" class:open-chevron={isPropOpen[category]}>
-          <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
+          <Svg name="chevron" size={30} color="rgb(186, 197, 211)" />
         </div>
         <span style="text-transform: capitalize;">{category} Batch Rules</span>
       </button>
@@ -268,7 +267,11 @@
                       placeholder="Blank = Keep Original"
                       value={comparer.getTarget(category, item.id) || ""}
                       oninput={(e) =>
-                        comparer.setTarget(category, item.id, e.target.value)}
+                        comparer.setTarget(
+                          category,
+                          item.id,
+                          e.currentTarget.value,
+                        )}
                     />
                   {:else if item.type === "boolean"}
                     <button
@@ -332,9 +335,9 @@
     align-items: center;
     margin: 10px 20px;
     padding: 15px 25px;
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
-    border-radius: 7px;
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
   }
 
   .toolbar-title {
@@ -348,10 +351,10 @@
   }
 
   .action-btn {
-    background-color: rgb(19, 28, 46);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border);
     padding: 5px 10px;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     border-radius: 7px;
     display: flex;
     align-items: center;
@@ -365,16 +368,16 @@
   .action-btn:hover {
     background-color: rgb(39, 51, 71);
     color: white;
-    border-color: rgb(186, 197, 211);
+    border-color: var(--text-light);
   }
 
   .properties-container {
     width: calc(100% - 40px);
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
-    border-radius: 7px;
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 10px;
     margin: 0 20px;
-    padding: 15px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
   }
@@ -387,9 +390,8 @@
     align-items: center;
     width: fit-content;
     cursor: pointer;
-    padding-bottom: 10px;
     span {
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
       font-size: 15px;
       font-weight: 600;
       margin-left: 5px;
@@ -414,8 +416,8 @@
   .rule-block {
     display: flex;
     flex-direction: column;
-    background-color: rgb(19, 28, 46);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-dark);
+    border: 1px solid var(--border);
     border-radius: 7px;
   }
 
@@ -442,7 +444,7 @@
   .rule-input {
     width: 350px;
     height: 45px;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     padding: 5px 10px;
     border-radius: 7px;
   }
@@ -450,7 +452,7 @@
   .custom-input {
     width: 100%;
     height: 100%;
-    background-color: rgb(29, 41, 61);
+    background-color: var(--bg-light);
     border: none;
     border-radius: 7px;
     color: white;
@@ -472,9 +474,9 @@
   .toggle-btn {
     width: 100%;
     height: 100%;
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
-    color: rgb(186, 197, 211);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    color: var(--text-light);
     border-radius: 7px;
     font-weight: 600;
     font-size: 15px;
@@ -490,14 +492,14 @@
     flex-direction: row;
     align-items: center;
     padding: 15px 25px;
-    background-color: rgb(19, 28, 46);
+    background-color: var(--bg-dark);
     border-bottom-left-radius: 7px;
     border-bottom-right-radius: 7px;
   }
   .detected-label {
     font-size: 14px;
     font-weight: 600;
-    color: rgb(144, 161, 185);
+    color: var(--text-dark);
     margin-right: 15px;
     white-space: nowrap;
   }
@@ -507,8 +509,8 @@
     gap: 10px;
   }
   .tag-item {
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
     color: white;
     padding: 6px 14px;
     border-radius: 7px;
@@ -517,7 +519,7 @@
     letter-spacing: 0.5px;
   }
   .tag-empty {
-    color: rgb(144, 161, 185);
+    color: var(--text-dark);
     font-style: italic;
     font-size: 14px;
     padding: 6px 0;

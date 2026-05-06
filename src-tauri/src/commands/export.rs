@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::fs;
 use tauri::{ AppHandle, Emitter };
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_shell::{ ShellExt, process::CommandEvent };
@@ -11,7 +12,7 @@ pub async fn export_stream(
     stream_index: usize
 ) -> Result<(), String> {
     let default_ext = match stream_type.as_str() {
-        "video" => "mp4",
+        "video" => "mkv",
         "audio" => "mp3",
         "subtitle" => "srt",
         _ => "mkv",
@@ -43,9 +44,11 @@ pub async fn export_stream(
             .add_filter("Matroska Audio (Zero-Loss Copy)", &["mka"]);
     } else if stream_type == "video" {
         dialog_builder = dialog_builder
-            .add_filter("MP4 Video", &["mp4"])
             .add_filter("Matroska Video", &["mkv"])
-            .add_filter("AVI Video", &["avi"]);
+            .add_filter("MP4 Video", &["mp4"])
+            .add_filter("AVI Video", &["avi"])
+            .add_filter("QuickTime Video", &["mov"])
+            .add_filter("WebM Video", &["webm"]);
     } else if stream_type == "subtitle" {
         dialog_builder = dialog_builder
             .add_filter("SubRip Subtitle", &["srt"])
@@ -135,17 +138,48 @@ pub async fn export_stream(
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")
-        .map_err(|e| e.to_string())?
+        .map_err(|e| {
+            let msg = format!("Failed to find FFmpeg sidecar: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?
         .args(args)
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let msg = format!("Failed to spawn FFmpeg: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?;
+
+    let mut success = false;
+    let mut error_log = String::new();
 
     while let Some(event) = rx.recv().await {
-        if let CommandEvent::Stderr(line) = event {
-            let out = String::from_utf8_lossy(&line);
-            let _ = app.emit("ffmpeg-log", out.to_string());
+        match event {
+            CommandEvent::Stderr(line) => {
+                let out = String::from_utf8_lossy(&line);
+                error_log.push_str(&out);
+                error_log.push('\n');
+                let _ = app.emit("ffmpeg-log", out.to_string());
+            }
+            CommandEvent::Terminated(p) => {
+                success = p.code == Some(0);
+            }
+            _ => {}
         }
     }
 
-    Ok(())
+    if success {
+        let _ = app.emit(
+            "backend-success",
+            format!("{} stream exported successfully", stream_type)
+        );
+        Ok(())
+    } else {
+        let _ = fs::remove_file(&output_path);
+
+        let err_msg = format!("FFmpeg export failed:\n{}", error_log);
+        let _ = app.emit("backend-error", &err_msg);
+        Err(err_msg)
+    }
 }

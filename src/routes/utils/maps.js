@@ -776,3 +776,19 @@ export const FIELD_ORDER = [
   { code: "bb", name: "Bottom Field First (Interlaced)" },
   { code: "unknown", name: "Unknown / Undetermined" },
 ];
+
+export const VIDEO_FORMATS = [
+  { code: "mkv", name: "Matroska (.mkv)" },
+  { code: "mp4", name: "MP4 (.mp4)" },
+  { code: "avi", name: "AVI (.avi)" },
+  { code: "mov", name: "QuickTime (.mov)" },
+  { code: "webm", name: "WebM (.webm)" },
+];
+
+export const ERROR_TYPES = {
+  widthNotValid: "Width must be greater than 0!",
+  widthNotEven: "Width must be an even number!",
+
+  heightNotValid: "Height must be greater than 0!",
+  heightNotEven: "Height must be an even number!",
+};

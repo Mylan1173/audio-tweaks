@@ -73,10 +73,10 @@
 
     display: flex;
     flex-direction: column;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 10px;
     z-index: 12;
-    background-color: rgb(19, 28, 46);
+    background-color: var(--bg-dark);
     overflow: hidden;
     transition:
       width 0.2s ease,

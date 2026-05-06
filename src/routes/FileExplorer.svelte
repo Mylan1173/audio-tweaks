@@ -7,10 +7,10 @@
 <div id="file-explorer">
   <div id="buttons">
     <button onclick={() => openMedia(true)}>
-      <Svg name="file_open" color="rgb(186, 197, 211)" /><span>Open File</span>
+      <Svg name="open_file" color="rgb(186, 197, 211)" /><span>Open File</span>
     </button>
     <button onclick={() => openMedia(false)}>
-      <Svg name="folder_open_outline" color="rgb(186, 197, 211)" /><span
+      <Svg name="open_folder" color="rgb(186, 197, 211)" /><span
         >Open Folder</span
       >
     </button>
@@ -27,9 +27,9 @@
   #file-explorer {
     width: 100%;
     height: calc(100vh - 20px);
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    background-color: rgb(29, 41, 61);
+    background-color: var(--bg-light);
     display: flex;
     flex-direction: column;
   }
@@ -42,14 +42,14 @@
     justify-content: center;
     align-items: center;
     gap: 20px;
-    border-bottom: 1px solid rgb(69, 85, 108);
+    border-bottom: 1px solid var(--border);
   }
 
   button {
     background-color: transparent;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     padding: 5px 10px;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     border-radius: 7px;
     display: flex;
     flex-direction: row;
@@ -67,8 +67,8 @@
 
     &:hover {
       cursor: pointer;
-      border-color: rgb(186, 197, 211);
-      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+      border-color: var(--text-light);
+      box-shadow: var(--text-light) 0px 0px 2px;
     }
   }
 
@@ -85,9 +85,9 @@
   .env {
     width: 100%;
     padding-left: 10px;
-    background-color: rgb(19, 28, 46);
-    border-bottom: 1px solid rgb(69, 85, 108);
-    color: rgb(186, 197, 211);
+    background-color: var(--bg-dark);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-light);
     font-size: 13px;
     font-weight: bold;
   }

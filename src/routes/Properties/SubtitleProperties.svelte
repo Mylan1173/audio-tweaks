@@ -10,7 +10,7 @@
   } from "../utils/state.svelte.js";
   import { open } from "@tauri-apps/plugin-dialog";
 
-  let isSubsPropOpen = $state(true);
+  let isSubsPropOpen = $state(false);
 
   let isEditing = $state(false);
   let editIndex = $state();
@@ -21,7 +21,7 @@
     const action = await openQuickMenu(e.currentTarget, [
       { label: "Edit", value: "edit", icon: "edit" },
       { label: "Delete", value: "delete", icon: "delete_forever" },
-      { label: "Export", value: "export", icon: "export" },
+      { label: "Export", value: "subtitles", icon: "export" },
     ]);
 
     if (!action) return;
@@ -96,7 +96,7 @@
     class="properties-container-title"
     onclick={() => (isSubsPropOpen = !isSubsPropOpen)}
     ><div class="chevron" class:open-chevron={isSubsPropOpen}>
-      <Svg name="chevron_left" size={30} color="rgb(186, 197, 211)" />
+      <Svg name="chevron" size={30} color="rgb(186, 197, 211)" />
     </div>
     <span>Subtitle Properties</span></button
   >
@@ -192,8 +192,8 @@
 <style>
   .properties-container {
     width: calc(100% - 40px);
-    background-color: rgb(29, 41, 61);
-    border: 1px solid rgb(69, 85, 108);
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
     border-radius: 10px;
     margin: 10px 20px;
     padding: 10px;
@@ -225,7 +225,7 @@
       }
 
       span {
-        color: rgb(186, 197, 211);
+        color: var(--text-light);
         font-size: 15px;
         font-weight: 600;
       }
@@ -245,7 +245,7 @@
       th {
         font-size: 15px;
         font-weight: 600;
-        color: rgb(186, 197, 211);
+        color: var(--text-light);
       }
     }
     tbody {
@@ -259,11 +259,11 @@
 
         td:nth-child(1) {
           width: 50%;
-          background-color: rgb(19, 28, 46);
+          background-color: var(--bg-dark);
         }
         td:nth-child(2) {
           width: 20%;
-          background-color: rgb(19, 28, 46);
+          background-color: var(--bg-dark);
         }
         td:nth-child(3),
         td:nth-child(4) {
@@ -296,9 +296,9 @@
     width: calc(100% - 10px);
     height: calc(100% - 10px);
     box-sizing: border-box;
-    background-color: rgb(29, 41, 61);
+    background-color: var(--bg-light);
     color: white;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 5px;
     font-size: 15px;
     font-weight: 600;
@@ -311,12 +311,12 @@
 
   td input[type="text"]:focus,
   td select:focus {
-    border-color: rgb(69, 85, 108);
-    background-color: rgb(29, 41, 61);
+    border-color: var(--border);
+    background-color: var(--bg-light);
   }
 
   select option {
-    background-color: rgb(19, 28, 46);
+    background-color: var(--bg-dark);
     color: white;
     text-align: left;
     border-radius: 10px;
@@ -332,7 +332,7 @@
     justify-content: center;
     padding: 10px;
     border-radius: 10px;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     background-color: transparent;
     cursor: pointer;
     gap: 10px;
@@ -341,11 +341,11 @@
     span {
       font-size: 16px;
       font-weight: 600;
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
     }
     &:hover {
-      border-color: rgb(186, 197, 211);
-      box-shadow: rgb(186, 197, 211) 0px 0px 2px;
+      border-color: var(--text-light);
+      box-shadow: var(--text-light) 0px 0px 2px;
     }
     &:active {
       transform: scale(97%);
@@ -372,7 +372,7 @@
     transition: 100ms all ease-in-out;
     cursor: pointer;
     &:hover {
-      background-color: rgb(19, 28, 46);
+      background-color: var(--bg-dark);
     }
     &:active {
       transform: scale(97%);

@@ -72,56 +72,61 @@
     </div>
   </div>
   <div class="channel-remapper">
-    <table>
-      <thead>
-        <tr>
-          <td></td>
-          {#each { length: activeStream.channels }, channelIndex}
-            <td
-              >{CHANNEL_LAYOUTS[activeStream.channels].find(
-                (x) => x.id == channelIndex,
-              ).code}</td
-            >
-          {/each}
-          <td>None</td>
-          <td>Volume</td>
-        </tr>
-      </thead>
-      <tbody>
-        {#each { length: activeStream.newChannels }, newChannelIndex}
+    <div class="input">Input</div>
+    <div class="output-container">
+      <div class="output">Output</div>
+
+      <table>
+        <thead>
           <tr>
-            <td
-              >{CHANNEL_LAYOUTS[activeStream.newChannels].find(
-                (x) => x.id == newChannelIndex,
-              ).code}</td
-            >
-            {#each { length: activeStream.channels + 1 }, channelIndex}
-              <td>
-                <button
-                  onclick={() => setChannelMap(channelIndex, newChannelIndex)}
-                >
-                  {#if channelMap[newChannelIndex] === channelIndex || (channelMap[newChannelIndex] === null && channelIndex === activeStream.channels)}
-                    <Svg name="radio_checked" color="white" />
-                  {:else}
-                    <Svg name="radio_unchecked" color="white" />
-                  {/if}
-                </button>
-              </td>
+            <td></td>
+            {#each { length: activeStream.channels }, channelIndex}
+              <td
+                >{CHANNEL_LAYOUTS[activeStream.channels].find(
+                  (x) => x.id == channelIndex,
+                ).code}</td
+              >
             {/each}
-            <td>
-              <div class="volume-cont">
-                <input
-                  type="number"
-                  bind:value={channelVolumes[newChannelIndex]}
-                  oninput={() => setChannelVolume(newChannelIndex)}
-                />
-                <div>dB</div>
-              </div>
-            </td>
+            <td>None</td>
+            <td>Volume</td>
           </tr>
-        {/each}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {#each { length: activeStream.newChannels }, newChannelIndex}
+            <tr>
+              <td
+                >{CHANNEL_LAYOUTS[activeStream.newChannels].find(
+                  (x) => x.id == newChannelIndex,
+                ).code}</td
+              >
+              {#each { length: activeStream.channels + 1 }, channelIndex}
+                <td>
+                  <button
+                    onclick={() => setChannelMap(channelIndex, newChannelIndex)}
+                  >
+                    {#if channelMap[newChannelIndex] === channelIndex || (channelMap[newChannelIndex] === null && channelIndex === activeStream.channels)}
+                      <Svg name="radio_checked" color="white" />
+                    {:else}
+                      <Svg name="radio_unchecked" color="white" />
+                    {/if}
+                  </button>
+                </td>
+              {/each}
+              <td>
+                <div class="volume-cont">
+                  <input
+                    type="number"
+                    bind:value={channelVolumes[newChannelIndex]}
+                    oninput={() => setChannelVolume(newChannelIndex)}
+                  />
+                  <div>dB</div>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -140,14 +145,14 @@
     gap: 10px;
 
     p {
-      color: rgb(186, 197, 211);
+      color: var(--text-light);
       font-size: 15px;
       font-weight: 600;
     }
 
     .current-layout {
       height: 40px;
-      border: 1px solid rgb(69, 85, 108);
+      border: 1px solid var(--border);
       padding: 0px 20px;
       display: grid;
       place-items: center;
@@ -159,7 +164,7 @@
     .channels-dropdown {
       width: 200px;
       height: 40px;
-      border: 1px solid rgb(69, 85, 108);
+      border: 1px solid var(--border);
       padding: 0px 20px;
       display: grid;
       place-items: center;
@@ -171,14 +176,35 @@
     width: max-content;
     padding: 10px;
     margin: 0 10px;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 10px;
+  }
+
+  .input {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-light);
+  }
+
+  .output-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .output {
+    text-orientation: upright;
+    writing-mode: sideways-lr;
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--text-light);
   }
 
   table {
     width: max-content;
     height: fit-content;
     border-collapse: collapse;
+    margin: 10px;
   }
 
   tr {
@@ -186,11 +212,11 @@
   }
 
   tbody tr td:not(:last-child) {
-    border-top: 1px solid rgb(69, 85, 108);
+    border-top: 1px solid var(--border);
   }
 
   td:not(:last-child, :nth-last-child(1), :nth-last-child(2)) {
-    border-right: 1px solid rgb(69, 85, 108);
+    border-right: 1px solid var(--border);
   }
 
   td:last-child {
@@ -200,7 +226,7 @@
   td {
     width: 50px;
 
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     font-size: 15px;
     font-weight: 600;
   }
@@ -221,7 +247,7 @@
     overflow: hidden;
     height: 40px;
     width: 100%;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 10px;
     display: flex;
     flex-direction: row;
@@ -230,7 +256,7 @@
       width: calc(100% - 30px);
       background-color: transparent;
       border: none;
-      border-right: 1px solid rgb(69, 85, 108);
+      border-right: 1px solid var(--border);
       color: white;
       font-size: 16px;
       font-weight: 600;
@@ -249,8 +275,8 @@
     }
 
     div {
-      background-color: rgb(19, 28, 46);
-      color: rgb(186, 197, 211);
+      background-color: var(--bg-dark);
+      color: var(--text-light);
       font-weight: 600;
       font-size: 15px;
       width: 30px;

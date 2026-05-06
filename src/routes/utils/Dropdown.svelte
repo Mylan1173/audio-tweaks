@@ -14,9 +14,16 @@
   let isOpen = $derived(appState.activeDropdownId === id);
   let searchQuery = $state("");
 
-  let displayValue = $derived(
-    options.choices.find((x) => x.code === value)?.name ?? options.dft,
-  );
+  let displayValue = $derived.by(() => {
+    let result;
+    try {
+      result =
+        options.choices.find((x) => x.code === value)?.name ?? options.dft;
+    } catch (err) {
+      console.error(options.choices);
+    }
+    return result;
+  });
 
   let filteredChoices = $derived(
     !searchable || searchQuery.trim() === ""
@@ -149,13 +156,13 @@
   }
 
   .search-input::placeholder {
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
   }
 
   .arrow {
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
-    border-top: 5px solid rgb(186, 197, 211);
+    border-top: 5px solid var(--text-light);
     transition: transform 0.2s;
     flex-shrink: 0;
   }
@@ -166,9 +173,9 @@
     top: calc(100% + 5px);
     left: 5%;
     width: 90%;
-    border: 1px solid rgb(69, 85, 108);
+    border: 1px solid var(--border);
     border-radius: 8px;
-    background-color: rgb(29, 41, 61);
+    background-color: var(--bg-light);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
     display: flex;
     flex-direction: column;
@@ -201,14 +208,14 @@
 
   .opt-code {
     font-size: 11px;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     text-transform: uppercase;
   }
 
   .no-results {
     padding: 15px;
     font-size: 13px;
-    color: rgb(186, 197, 211);
+    color: var(--text-light);
     text-align: center;
   }
 
@@ -219,7 +226,7 @@
     background: transparent;
   }
   .options-list::-webkit-scrollbar-thumb {
-    background: rgb(69, 85, 108);
+    background: var(--border);
     border-radius: 10px;
   }
 </style>

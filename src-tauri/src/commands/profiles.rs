@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{ AppHandle, Emitter };
 use tauri_plugin_dialog::DialogExt;
 use std::fs;
 
@@ -15,10 +15,18 @@ pub async fn export_profile(app: AppHandle, profile_data: String) -> Result<Stri
     match file_path {
         Some(path) => {
             let path_str = path.to_string();
-            fs
-                ::write(&path_str, profile_data)
-                .map_err(|e| format!("Failed to write profile: {}", e))?;
-            Ok(path_str)
+
+            match fs::write(&path_str, profile_data) {
+                Ok(_) => {
+                    let _ = app.emit("backend-success", "Profile exported successfully");
+                    Ok(path_str)
+                }
+                Err(e) => {
+                    let msg = format!("Failed to write profile: {}", e);
+                    let _ = app.emit("backend-error", &msg);
+                    Err(msg)
+                }
+            }
         }
         None => Ok("Cancelled".into()),
     }
@@ -35,10 +43,19 @@ pub async fn import_profile(app: AppHandle) -> Result<Option<String>, String> {
 
     match file_path {
         Some(path) => {
-            let content = fs
-                ::read_to_string(path.as_path().unwrap())
-                .map_err(|e| format!("Failed to read profile: {}", e))?;
-            Ok(Some(content))
+            let path_str = path.to_string();
+
+            match fs::read_to_string(&path_str) {
+                Ok(content) => {
+                    let _ = app.emit("backend-success", "Profile imported successfully");
+                    Ok(Some(content))
+                }
+                Err(e) => {
+                    let msg = format!("Failed to read profile: {}", e);
+                    let _ = app.emit("backend-error", &msg);
+                    Err(msg)
+                }
+            }
         }
         None => Ok(None),
     }

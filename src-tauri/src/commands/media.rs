@@ -4,6 +4,7 @@ use tauri_plugin_shell::{ ShellExt, process::CommandEvent };
 use std::{ collections::HashMap, fs, path::Path, thread, time::Duration };
 use serde::{ Deserialize, Serialize };
 use serde_json::Value;
+use super::ffmpeg_builder::FfmpegBuilder;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[allow(non_snake_case)]
@@ -47,6 +48,7 @@ pub struct VideoChanges {
     pub pixelFormat: Option<String>,
     pub fieldOrder: Option<String>,
     pub profile: Option<String>,
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -67,7 +69,11 @@ pub async fn get_media_streams(app: AppHandle, path: String) -> Result<Value, St
     let output = app
         .shell()
         .sidecar("ffprobe")
-        .map_err(|e| e.to_string())?
+        .map_err(|e| {
+            let msg = format!("Failed to find ffprobe: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?
         .args([
             "-v",
             "error",
@@ -85,9 +91,17 @@ pub async fn get_media_streams(app: AppHandle, path: String) -> Result<Value, St
             &path,
         ])
         .output().await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let msg = format!("Failed to execute ffprobe: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?;
 
-    serde_json::from_slice(&output.stdout).map_err(|e| format!("Failed to parse ffprobe: {}", e))
+    serde_json::from_slice(&output.stdout).map_err(|e| {
+        let msg = format!("Failed to parse ffprobe: {}", e);
+        let _ = app.emit("backend-error", &msg);
+        msg
+    })
 }
 
 #[tauri::command]
@@ -99,14 +113,29 @@ pub async fn get_audio_path(
     let cache_dir = app
         .path()
         .app_cache_dir()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let msg = format!("Failed to get cache dir: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?;
 
     if !cache_dir.exists() {
-        std::fs::create_dir_all(&cache_dir).map_err(|e| e.to_string())?;
+        std::fs::create_dir_all(&cache_dir).map_err(|e| {
+            let msg = format!("Failed to create cache dir: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?;
     }
 
     let output_path = cache_dir.join("temp_visualizer.wav");
-    let output_path_str = output_path.to_str().ok_or("Invalid cache path")?.to_string();
+    let output_path_str = output_path
+        .to_str()
+        .ok_or_else(|| {
+            let msg = "Invalid cache path".to_string();
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?
+        .to_string();
 
     let args = vec![
         "-i".to_string(),
@@ -131,10 +160,18 @@ pub async fn get_audio_path(
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")
-        .map_err(|e| e.to_string())?
+        .map_err(|e| {
+            let msg = format!("FFmpeg sidecar error: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?
         .args(args)
         .spawn()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            let msg = format!("Failed to spawn FFmpeg: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?;
 
     while let Some(event) = rx.recv().await {
         if let CommandEvent::Stderr(line) = event {
@@ -184,73 +221,33 @@ fn build_ffmpeg_args(
     muxer: &str,
     temp_path: &str
 ) -> Vec<String> {
-    let mut args = vec![
-        "-y".into(),
-        "-hide_banner".into(),
-        "-hwaccel".into(),
-        "auto".into(),
-        "-i".into(),
-        file_path.into()
-    ];
+    let mut builder = FfmpegBuilder::new();
 
-    let mut imported_files = Vec::new();
-    if let Some(subs) = &changes.subtitle {
-        for sub in subs {
-            if sub.isImported {
-                if let Some(p) = &sub.path {
-                    if !imported_files.contains(p) {
-                        args.push("-i".into());
-                        args.push(p.clone());
-                        imported_files.push(p.clone());
-                    }
-                }
-            }
-        }
-    }
-    if let Some(audios) = &changes.audio {
-        for aud in audios {
-            if aud.isImported {
-                if let Some(p) = &aud.path {
-                    if !imported_files.contains(p) {
-                        args.push("-i".into());
-                        args.push(p.clone());
-                        imported_files.push(p.clone());
-                    }
-                }
-            }
-        }
-    }
+    let main_input_idx = builder.add_input(file_path);
 
     // --- VIDEO ---
-    args.push("-map".into());
-    args.push("0:v:0?".into());
+    builder.map(main_input_idx, "v:0?");
 
     if let Some(v) = &changes.video {
-        let codec = v.codecName.clone().unwrap_or_else(|| "copy".into());
-        args.push("-c:v:0".into());
-        args.push(codec.clone());
+        let codec = v.codecName.as_deref().unwrap_or("copy");
+        builder.codec("v:0", codec);
 
         if codec != "copy" {
             if let (Some(w), Some(h)) = (v.width, v.height) {
-                args.push("-vf".into());
-                args.push(format!("scale={}:{}", w, h));
+                builder.filter("v:0", &format!("scale={}:{}", w, h));
             }
             if let Some(ar) = &v.aspectRatio {
-                args.push("-aspect".into());
-                args.push(ar.clone());
+                builder.arg("-aspect", ar);
             }
             if let Some(pf) = &v.pixelFormat {
-                args.push("-pix_fmt".into());
-                args.push(pf.clone());
+                builder.arg("-pix_fmt", pf);
             }
             if let Some(pr) = &v.profile {
-                args.push("-profile:v".into());
-                args.push(pr.clone());
+                builder.arg("-profile:v", pr);
             }
         }
     } else {
-        args.push("-c:v:0".into());
-        args.push("copy".into());
+        builder.codec("v:0", "copy");
     }
 
     // --- AUDIO ---
@@ -259,38 +256,31 @@ fn build_ffmpeg_args(
         let mut original_a_idx = 0;
 
         for aud in audios {
-            if aud.isImported {
-                let f_idx =
-                    imported_files
-                        .iter()
-                        .position(|r| r == aud.path.as_ref().unwrap())
-                        .unwrap() + 1;
-                args.push("-map".into());
-                args.push(format!("{}:a:0", f_idx));
-            } else {
-                if !aud.isDeleted {
-                    args.push("-map".into());
-                    args.push(format!("0:a:{}", original_a_idx));
-                }
-                original_a_idx += 1;
-            }
-
             if aud.isDeleted {
+                if !aud.isImported {
+                    original_a_idx += 1;
+                }
                 continue;
             }
 
-            let acodec = aud.codecName.clone().unwrap_or_else(|| "copy".into());
-            args.push(format!("-c:a:{}", out_a_idx));
-            args.push(acodec.clone());
+            if aud.isImported {
+                let f_idx = builder.add_input(aud.path.as_ref().unwrap());
+                builder.map(f_idx, "a:0");
+            } else {
+                builder.map(main_input_idx, &format!("a:{}", original_a_idx));
+                original_a_idx += 1;
+            }
+
+            let acodec = aud.codecName.as_deref().unwrap_or("copy");
+            let out_spec = format!("a:{}", out_a_idx);
+            builder.codec(&out_spec, acodec);
 
             if acodec != "copy" {
                 if let Some(br) = &aud.bitRate {
-                    args.push(format!("-b:a:{}", out_a_idx));
-                    args.push(br.clone());
+                    builder.arg(&format!("-b:{}", out_spec), br);
                 }
                 if let Some(sr) = &aud.sampleRate {
-                    args.push(format!("-ar:a:{}", out_a_idx));
-                    args.push(sr.clone());
+                    builder.arg(&format!("-ar:{}", out_spec), sr);
                 }
 
                 if
@@ -305,61 +295,58 @@ fn build_ffmpeg_args(
 
                     for i in 0..new_ch_i {
                         let key = i.to_string();
-                        if let Some(val) = cmap.get(&key) {
-                            if !val.is_null() {
-                                let in_ch = val
+                        if
+                            let Some(val) = cmap
+                                .get(&key)
+                                .and_then(|v| if v.is_null() { None } else { Some(v) })
+                        {
+                            if
+                                let Some(in_ch_f) = val
                                     .as_f64()
-                                    .or_else(|| val.as_str().and_then(|s| s.parse().ok()));
+                                    .or_else(|| val.as_str().and_then(|s| s.parse().ok()))
+                            {
+                                let vol_db = cvol
+                                    .get(&key)
+                                    .and_then(|v| {
+                                        v.as_f64().or_else(||
+                                            v.as_str().and_then(|s| s.parse().ok())
+                                        )
+                                    })
+                                    .unwrap_or(0.0);
 
-                                if let Some(in_ch_f) = in_ch {
-                                    let vol_val = cvol.get(&key).unwrap_or(&Value::Null);
-                                    let vol_db = vol_val
-                                        .as_f64()
-                                        .or_else(|| vol_val.as_str().and_then(|s| s.parse().ok()))
-                                        .unwrap_or(0.0);
-
-                                    let multiplier = (10_f64).powf(vol_db / 20.0);
-                                    pan_parts.push(
-                                        format!("c{}={:.4}*c{}", i, multiplier, in_ch_f as i64)
-                                    );
-                                }
+                                let multiplier = (10_f64).powf(vol_db / 20.0);
+                                pan_parts.push(
+                                    format!("c{}={:.4}*c{}", i, multiplier, in_ch_f as i64)
+                                );
                             }
                         }
                     }
-
-                    args.push(format!("-filter:a:{}", out_a_idx));
-                    args.push(format!("pan={}", pan_parts.join("|")));
+                    builder.filter(&out_spec, &format!("pan={}", pan_parts.join("|")));
                 } else if let Some(ac) = aud.newChannels {
-                    args.push(format!("-ac:a:{}", out_a_idx));
-                    args.push(ac.to_string());
+                    builder.arg(&format!("-ac:{}", out_spec), &ac.to_string());
                 }
             }
 
-            args.push(format!("-metadata:s:a:{}", out_a_idx));
-            args.push(
-                format!("title={}", if aud.title.trim().is_empty() { "" } else { &aud.title })
-            );
-            args.push(format!("-metadata:s:a:{}", out_a_idx));
-            args.push(format!("language={}", aud.language));
+            let title = if aud.title.trim().is_empty() { "" } else { &aud.title };
+            builder.metadata(&out_spec, "title", title);
+            builder.metadata(&out_spec, "language", &aud.language);
 
-            let mut a_flags = Vec::new();
+            let mut flags = Vec::new();
             if aud.default {
-                a_flags.push("default");
+                flags.push("default");
             }
             if aud.forced {
-                a_flags.push("forced");
+                flags.push("forced");
             }
 
-            args.push(format!("-disposition:a:{}", out_a_idx));
-            args.push(if a_flags.is_empty() { "0".into() } else { a_flags.join("+") });
+            let disp_str = if flags.is_empty() { "0".to_string() } else { flags.join("+") };
+            builder.disposition(&out_spec, &disp_str);
 
             out_a_idx += 1;
         }
     } else {
-        args.push("-map".into());
-        args.push("0:a?".into());
-        args.push("-c:a".into());
-        args.push("copy".into());
+        builder.map(main_input_idx, "a?");
+        builder.codec("a", "copy");
     }
 
     // --- SUBTITLE ---
@@ -368,36 +355,27 @@ fn build_ffmpeg_args(
         let mut output_idx = 0;
 
         for sub in subs {
-            let source = if sub.isImported {
-                let f_idx =
-                    imported_files
-                        .iter()
-                        .position(|r| r == sub.path.as_ref().unwrap())
-                        .unwrap() + 1;
-                format!("{}:s:0", f_idx)
-            } else {
-                let s = format!("0:s:{}", original_idx);
-                original_idx += 1;
-                s
-            };
-
             if sub.isDeleted {
+                if !sub.isImported {
+                    original_idx += 1;
+                }
                 continue;
             }
 
-            args.push("-map".into());
-            args.push(source);
+            if sub.isImported {
+                let f_idx = builder.add_input(sub.path.as_ref().unwrap());
+                builder.map(f_idx, "s:0");
+            } else {
+                builder.map(main_input_idx, &format!("s:{}", original_idx));
+                original_idx += 1;
+            }
 
-            args.push(format!("-c:s:{}", output_idx));
-            args.push("copy".into());
+            let out_spec = format!("s:{}", output_idx);
+            builder.codec(&out_spec, "copy");
 
-            args.push(format!("-metadata:s:s:{}", output_idx));
-            args.push(
-                format!("title={}", if sub.title.trim().is_empty() { "" } else { &sub.title })
-            );
-
-            args.push(format!("-metadata:s:s:{}", output_idx));
-            args.push(format!("language={}", sub.language));
+            let title = if sub.title.trim().is_empty() { "" } else { &sub.title };
+            builder.metadata(&out_spec, "title", title);
+            builder.metadata(&out_spec, "language", &sub.language);
 
             let mut flags = Vec::new();
             if sub.default {
@@ -407,29 +385,17 @@ fn build_ffmpeg_args(
                 flags.push("forced");
             }
 
-            args.push(format!("-disposition:s:{}", output_idx));
-            args.push(if flags.is_empty() { "0".into() } else { flags.join("+") });
+            let disp_str = if flags.is_empty() { "0".to_string() } else { flags.join("+") };
+            builder.disposition(&out_spec, &disp_str);
 
             output_idx += 1;
         }
     } else {
-        args.push("-map".into());
-        args.push("0:s?".into());
-        args.push("-c:s".into());
-        args.push("copy".into());
+        builder.map(main_input_idx, "s?");
+        builder.codec("s", "copy");
     }
 
-    args.extend(
-        vec![
-            "-stats".into(),
-            "-v".into(),
-            "info".into(),
-            "-f".into(),
-            muxer.into(),
-            temp_path.into()
-        ]
-    );
-    args
+    builder.build(muxer, temp_path)
 }
 
 #[tauri::command]
@@ -439,7 +405,15 @@ pub async fn save_media_props(
     changes: PendingChanges,
     save_as: bool
 ) -> Result<String, String> {
-    let info = get_media_info(&app, &file_path).await?;
+    let info = match get_media_info(&app, &file_path).await {
+        Ok(i) => i,
+        Err(e) => {
+            let msg = format!("Failed to read media info: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            return Err(msg);
+        }
+    };
+
     let mut target_path = file_path.clone();
 
     if save_as {
@@ -476,10 +450,18 @@ pub async fn save_media_props(
     let (mut rx, _child) = app
         .shell()
         .sidecar("ffmpeg")
-        .map_err(|e| e.to_string())?
+        .map_err(|e| {
+            let msg = format!("Failed to find FFmpeg sidecar: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?
         .args(args)
         .spawn()
-        .map_err(|e| format!("Failed to start FFmpeg process: {}", e))?;
+        .map_err(|e| {
+            let msg = format!("Failed to start FFmpeg process: {}", e);
+            let _ = app.emit("backend-error", &msg);
+            msg
+        })?;
 
     let mut success = false;
     let mut error_log = String::new();
@@ -491,7 +473,6 @@ pub async fn save_media_props(
                 error_log.push_str(&out);
                 error_log.push('\n');
 
-                // Stream the live terminal output to the frontend modal
                 let _ = app.emit("ffmpeg-log", out.to_string());
             }
             CommandEvent::Terminated(p) => {
@@ -511,23 +492,57 @@ pub async fn save_media_props(
                     fs::copy(&temp_path, &target_path)?;
                     fs::remove_file(&temp_path)
                 })
-                .map_err(|e| format!("Failed to save new file: {}", e))?;
+                .map_err(|e| {
+                    let msg = format!("Failed to save new file: {}", e);
+                    let _ = app.emit("backend-error", &msg);
+                    msg
+                })?;
         } else {
+            let bak_path = format!("{}.bak", file_path);
+
             fs
-                ::remove_file(&file_path)
-                .map_err(|e| format!("Failed to remove original file: {}", e))?;
-            fs
-                ::rename(&temp_path, &target_path)
+                ::rename(&file_path, &bak_path)
                 .or_else(|_| {
+                    fs::copy(&file_path, &bak_path)?;
+                    fs::remove_file(&file_path)
+                })
+                .map_err(|e| {
+                    let msg = format!("Failed to create backup: {}", e);
+                    let _ = app.emit("backend-error", &msg);
+                    msg
+                })?;
+
+            match
+                fs::rename(&temp_path, &target_path).or_else(|_| {
                     fs::copy(&temp_path, &target_path)?;
                     fs::remove_file(&temp_path)
                 })
-                .map_err(|e| format!("Failed to overwrite original file: {}", e))?;
+            {
+                Ok(_) => {
+                    let _ = fs::remove_file(&bak_path);
+                }
+                Err(e) => {
+                    let _ = fs
+                        ::rename(&bak_path, &file_path)
+                        .or_else(|_| {
+                            fs::copy(&bak_path, &file_path).and_then(|_| fs::remove_file(&bak_path))
+                        });
+
+                    let msg =
+                        format!("Failed to overwrite original file. Backup restored. Error: {}", e);
+                    let _ = app.emit("backend-error", &msg);
+                    return Err(msg);
+                }
+            }
         }
 
-        Ok("File saved successfully".into())
+        let success_msg = "File saved successfully";
+        let _ = app.emit("backend-success", success_msg);
+        Ok(success_msg.into())
     } else {
-        let _ = fs::remove_file(&file_path);
-        Err(format!("FFmpeg failed:\n{}", error_log))
+        let _ = fs::remove_file(&temp_path);
+        let err_msg = format!("FFmpeg failed:\n{}", error_log);
+        let _ = app.emit("backend-error", &err_msg);
+        Err(err_msg)
     }
 }
